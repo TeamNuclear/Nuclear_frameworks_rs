@@ -87,14 +87,19 @@ time_t rsrTime(Context *rsc, time_t *timer) {
 
 tm* rsrLocalTime(Context *rsc, tm *local, time_t *timer) {
     if (!local) {
-      return nullptr;
+      return NULL;
     }
 
     // The native localtime function is not thread-safe, so we
     // have to apply locking for proper behavior in RenderScript.
     pthread_mutex_lock(&rsc->gLibMutex);
     tm *tmp = localtime(timer);
+#ifndef RS_COMPATIBILITY_LIB
+    memcpy(local, tmp, sizeof(*tmp));
+#else
+    // WORKAROUND to struct rs_tm != struct tm
     memcpy(local, tmp, sizeof(int)*9);
+#endif
     pthread_mutex_unlock(&rsc->gLibMutex);
     return local;
 }
@@ -142,66 +147,52 @@ static void SetObjectRef(const Context *rsc, const ObjectBase *dst, const Object
 }
 
 // Legacy, remove when drivers are updated
+void rsrSetObject(const Context *rsc, void *dst, ObjectBase *src) {
+    ObjectBase **odst = (ObjectBase **)dst;
+    //ALOGE("rsrSetObject (base) %p,%p  %p", dst, *odst, src);
+    SetObjectRef(rsc, odst[0], src);
+    if (src != NULL) {
+        src->callUpdateCacheObject(rsc, dst);
+    }
+}
+
+void rsrSetObject(const Context *rsc, rs_object_base *dst, const ObjectBase *src) {
+    ObjectBase **odst = (ObjectBase **)dst;
+    //ALOGE("rsrSetObject (base) %p,%p  %p", dst, *odst, src);
+    SetObjectRef(rsc, odst[0], src);
+    if (src != NULL) {
+        src->callUpdateCacheObject(rsc, dst);
+    }
+}
+
+// Legacy, remove when drivers are updated
 void rsrClearObject(const Context *rsc, void *dst) {
     ObjectBase **odst = (ObjectBase **)dst;
-    if (ObjectBase::gDebugReferences) {
-        ALOGE("rsrClearObject  %p,%p", odst, *odst);
-    }
+    //ALOGE("rsrClearObject  %p,%p", odst, *odst);
     if (odst[0]) {
         CHECK_OBJ(odst[0]);
         odst[0]->decSysRef();
     }
-    *odst = nullptr;
+    *odst = NULL;
 }
 
 void rsrClearObject(const Context *rsc, rs_object_base *dst) {
-    if (ObjectBase::gDebugReferences) {
-        ALOGE("rsrClearObject  %p,%p", dst, dst->p);
-    }
+    //ALOGE("rsrClearObject  %p,%p", odst, *odst);
     if (dst->p) {
         CHECK_OBJ(dst->p);
         dst->p->decSysRef();
     }
-    dst->p = nullptr;
-}
-
-// Legacy, remove when drivers are updated
-void rsrSetObject(const Context *rsc, void *dst, ObjectBase *src) {
-    if (src == nullptr) {
-        rsrClearObject(rsc, dst);
-        return;
-    }
-
-    ObjectBase **odst = (ObjectBase **)dst;
-    if (ObjectBase::gDebugReferences) {
-        ALOGE("rsrSetObject (base) %p,%p  %p", dst, *odst, src);
-    }
-    SetObjectRef(rsc, odst[0], src);
-    src->callUpdateCacheObject(rsc, dst);
-}
-
-void rsrSetObject(const Context *rsc, rs_object_base *dst, const ObjectBase *src) {
-    if (src == nullptr) {
-        rsrClearObject(rsc, dst);
-        return;
-    }
-
-    ObjectBase **odst = (ObjectBase **)dst;
-    if (ObjectBase::gDebugReferences) {
-        ALOGE("rsrSetObject (base) %p,%p  %p", dst, *odst, src);
-    }
-    SetObjectRef(rsc, odst[0], src);
-    src->callUpdateCacheObject(rsc, dst);
+    dst->p = NULL;
 }
 
 // Legacy, remove when drivers are updated
 bool rsrIsObject(const Context *, ObjectBase* src) {
     ObjectBase **osrc = (ObjectBase **)src;
-    return osrc != nullptr;
+    return osrc != NULL;
 }
 
 bool rsrIsObject(const Context *rsc, rs_object_base o) {
-    return o.p != nullptr;
+    return o.p != NULL;
 }
 
 
@@ -239,17 +230,7 @@ void rsrForEach(Context *rsc,
                 Allocation *in, Allocation *out,
                 const void *usr, uint32_t usrBytes,
                 const RsScriptCall *call) {
-
-    if (in == nullptr) {
-        target->runForEach(rsc, /* root slot */ 0, nullptr, 0, out, usr,
-                           usrBytes, call);
-
-    } else {
-        const Allocation *ins[1] = {in};
-        target->runForEach(rsc, /* root slot */ 0, ins,
-                           sizeof(ins) / sizeof(RsAllocation), out, usr,
-                           usrBytes, call);
-    }
+    target->runForEach(rsc, /* root slot */ 0, in, out, usr, usrBytes, call);
 }
 
 void rsrAllocationSyncAll(Context *rsc, Allocation *a, RsAllocationUsageType usage) {

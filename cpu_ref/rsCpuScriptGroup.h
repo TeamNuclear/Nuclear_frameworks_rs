@@ -25,17 +25,17 @@ namespace renderscript {
 
 class CpuScriptGroupImpl : public RsdCpuReference::CpuScriptGroup {
 public:
-    void setInput(const ScriptKernelID *kid, Allocation *) override;
-    void setOutput(const ScriptKernelID *kid, Allocation *) override;
-    void execute() override;
-    ~CpuScriptGroupImpl() override;
+    virtual void setInput(const ScriptKernelID *kid, Allocation *);
+    virtual void setOutput(const ScriptKernelID *kid, Allocation *);
+    virtual void execute();
+    virtual ~CpuScriptGroupImpl();
 
-    CpuScriptGroupImpl(RsdCpuReferenceImpl *ctx, const ScriptGroupBase *sg);
+    CpuScriptGroupImpl(RsdCpuReferenceImpl *ctx, const ScriptGroup *sg);
     bool init();
 
-    static void scriptGroupRoot(const RsExpandKernelDriverInfo *info,
+    static void scriptGroupRoot(const RsForEachStubParamStruct *p,
                                 uint32_t xstart, uint32_t xend,
-                                uint32_t outstep);
+                                uint32_t instep, uint32_t outstep);
 
 protected:
     struct ScriptList {

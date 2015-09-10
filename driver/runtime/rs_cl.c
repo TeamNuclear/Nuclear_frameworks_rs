@@ -1,4 +1,4 @@
-#include "rs_core.rsh"
+#include "rs_types.rsh"
 
 extern float2 __attribute__((overloadable)) convert_float2(int2 c);
 extern float3 __attribute__((overloadable)) convert_float3(int3 c);
@@ -548,7 +548,7 @@ FN_FUNC_FN(rint)
 
 extern float __attribute__((overloadable)) rootn(float v, int r) {
     if (r == 0) {
-        return posinf();
+        return posinf(0);
     }
 
     if (iszero(v)) {
@@ -588,16 +588,13 @@ extern float __attribute__((overloadable)) rsqrt(float v) {
     return 1.f / sqrt(v);
 }
 
-#if (!defined(__i386__) && !defined(__x86_64__)) || defined(RS_DEBUG_RUNTIME)
-// These functions must be defined here if we are not using the SSE
-// implementation, which includes when we are built as part of the
-// debug runtime (libclcore_debug.bc).
+#if !defined(__i386__) && !defined(__x86_64__)
 FN_FUNC_FN(sqrt)
 #else
 extern float2 __attribute__((overloadable)) sqrt(float2);
 extern float3 __attribute__((overloadable)) sqrt(float3);
 extern float4 __attribute__((overloadable)) sqrt(float4);
-#endif // (!defined(__i386__) && !defined(__x86_64__)) || defined(RS_DEBUG_RUNTIME)
+#endif // !defined(__i386__) && !defined(__x86_64__)
 
 FN_FUNC_FN(rsqrt)
 
@@ -929,10 +926,7 @@ extern float4 __attribute__((overloadable)) cross(float4 lhs, float4 rhs) {
     return r;
 }
 
-#if (!defined(__i386__) && !defined(__x86_64__)) || defined(RS_DEBUG_RUNTIME)
-// These functions must be defined here if we are not using the SSE
-// implementation, which includes when we are built as part of the
-// debug runtime (libclcore_debug.bc).
+#if !defined(__i386__) && !defined(__x86_64__)
 
 extern float __attribute__((overloadable)) dot(float lhs, float rhs) {
     return lhs * rhs;
@@ -967,7 +961,7 @@ extern float __attribute__((overloadable)) length(float2 v);
 extern float __attribute__((overloadable)) length(float3 v);
 extern float __attribute__((overloadable)) length(float4 v);
 
-#endif // (!defined(__i386__) && !defined(__x86_64__)) || defined(RS_DEBUG_RUNTIME)
+#endif // !defined(__i386__) && !defined(__x86_64__)
 
 extern float __attribute__((overloadable)) distance(float lhs, float rhs) {
     return length(lhs - rhs);

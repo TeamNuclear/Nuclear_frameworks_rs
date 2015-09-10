@@ -31,13 +31,13 @@ Signal::~Signal() {
 }
 
 bool Signal::init() {
-    int status = pthread_mutex_init(&mMutex, nullptr);
+    int status = pthread_mutex_init(&mMutex, NULL);
     if (status) {
         ALOGE("LocklessFifo mutex init failure");
         return false;
     }
 
-    status = pthread_cond_init(&mCondition, nullptr);
+    status = pthread_cond_init(&mCondition, NULL);
     if (status) {
         ALOGE("LocklessFifo condition init failure");
         pthread_mutex_destroy(&mMutex);

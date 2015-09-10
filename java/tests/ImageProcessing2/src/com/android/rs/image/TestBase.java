@@ -18,12 +18,19 @@ package com.android.rs.image2;
 
 import android.app.Activity;
 import android.content.Context;
+import android.os.Bundle;
+import android.graphics.BitmapFactory;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.support.v8.renderscript.*;
+import android.view.SurfaceView;
+import android.view.SurfaceHolder;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.view.View;
 import android.util.Log;
+import java.lang.Math;
 import android.widget.Spinner;
 
 public class TestBase  {
@@ -33,6 +40,7 @@ public class TestBase  {
     protected Allocation mInPixelsAllocation;
     protected Allocation mInPixelsAllocation2;
     protected Allocation mOutPixelsAllocation;
+
     protected ImageProcessingActivity2 act;
 
     // Override to use UI elements
@@ -75,25 +83,18 @@ public class TestBase  {
         return false;
     }
 
-    public void animateBars(float time) {
-    }
-
     public boolean onSpinner1Setup(Spinner s) {
         s.setVisibility(View.INVISIBLE);
         return false;
     }
 
-    public final void createBaseTest(ImageProcessingActivity2 ipact) {
+    public final void createBaseTest(ImageProcessingActivity2 ipact, Bitmap b, Bitmap b2, Bitmap outb) {
         act = ipact;
-        mRS = ipact.mProcessor.mRS;
+        mRS = ipact.mRS;
 
-        mInPixelsAllocation = ipact.mProcessor.mInPixelsAllocation;
-        mInPixelsAllocation2 = ipact.mProcessor.mInPixelsAllocation2;
-        if (ipact.mProcessor.mOutDisplayAllocation1 == null) {
-            mOutPixelsAllocation = ipact.mProcessor.mOutDisplayAllocationIO;
-        } else {
-            mOutPixelsAllocation = ipact.mProcessor.mOutDisplayAllocation1;
-        }
+        mInPixelsAllocation = ipact.mInPixelsAllocation;
+        mInPixelsAllocation2 = ipact.mInPixelsAllocation2;
+        mOutPixelsAllocation = ipact.mOutPixelsAllocation;
 
         createTest(act.getResources());
     }
@@ -106,6 +107,22 @@ public class TestBase  {
     public void runTest() {
     }
 
+    public void finish() {
+        mRS.finish();
+    }
+
     public void destroy() {
+    }
+
+    public void updateBitmap(Bitmap b) {
+        mOutPixelsAllocation.copyTo(b);
+    }
+
+    // Override to configure specific benchmark config.
+    public void setupBenchmark() {
+    }
+
+    // Override to reset after benchmark.
+    public void exitBenchmark() {
     }
 }

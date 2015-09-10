@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+ifneq ($(TARGET_SIMULATOR),true)
+
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -25,3 +27,5 @@ LOCAL_PACKAGE_NAME := RSTest_v11
 LOCAL_SDK_VERSION := 11
 
 include $(BUILD_PACKAGE)
+
+endif

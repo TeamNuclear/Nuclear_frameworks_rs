@@ -32,9 +32,9 @@ using namespace android::renderscript;
 RsdMeshObj::RsdMeshObj(const Context *rsc, const Mesh *rsMesh) {
     mRSMesh = rsMesh;
 
-    mAttribs = nullptr;
-    mAttribAllocationIndex = nullptr;
-    mGLPrimitives = nullptr;
+    mAttribs = NULL;
+    mAttribAllocationIndex = NULL;
+    mGLPrimitives = NULL;
 
     mAttribCount = 0;
 }
@@ -86,8 +86,8 @@ bool RsdMeshObj::init(const Context *rsc) {
     if (mAttribs) {
         delete [] mAttribs;
         delete [] mAttribAllocationIndex;
-        mAttribs = nullptr;
-        mAttribAllocationIndex = nullptr;
+        mAttribs = NULL;
+        mAttribAllocationIndex = NULL;
     }
     if (!mAttribCount) {
         return false;
@@ -114,7 +114,7 @@ bool RsdMeshObj::init(const Context *rsc) {
             mAttribs[userNum].stride = stride;
             String8 tmp(RS_SHADER_ATTR);
             tmp.append(elem->mHal.state.fieldNames[fieldI]);
-            mAttribs[userNum].name = tmp.string();
+            mAttribs[userNum].name.setTo(tmp.string());
 
             // Remember which allocation this attribute came from
             mAttribAllocationIndex[userNum] = ct;
@@ -148,7 +148,7 @@ void RsdMeshObj::renderPrimitiveRange(const Context *rsc, uint32_t primIndex,
 
         if (drvAlloc->bufferID) {
             mAttribs[ct].buffer = drvAlloc->bufferID;
-            mAttribs[ct].ptr = nullptr;
+            mAttribs[ct].ptr = NULL;
         } else {
             mAttribs[ct].buffer = 0;
             mAttribs[ct].ptr = (const uint8_t*)alloc->mHal.drvState.lod[0].mallocPtr;

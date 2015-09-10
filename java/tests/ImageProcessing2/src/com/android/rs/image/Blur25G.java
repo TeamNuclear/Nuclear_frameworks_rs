@@ -76,6 +76,14 @@ public class Blur25G extends TestBase {
         mIntrinsic.forEach(mScratchPixelsAllocation2);
     }
 
+    public void setupBenchmark() {
+        mIntrinsic.setRadius(MAX_RADIUS);
+    }
+
+    public void exitBenchmark() {
+        mIntrinsic.setRadius(mRadius);
+    }
+
     public void updateBitmap(Bitmap b) {
         mScript.forEach_toU8_4(mScratchPixelsAllocation2, mOutPixelsAllocation);
         mOutPixelsAllocation.copyTo(b);

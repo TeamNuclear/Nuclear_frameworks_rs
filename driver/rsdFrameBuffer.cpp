@@ -32,8 +32,8 @@ using namespace android::renderscript;
 void setDepthAttachment(const Context *rsc, const FBOCache *fb) {
     RsdFrameBufferObj *fbo = (RsdFrameBufferObj*)fb->mHal.drv;
 
-    DrvAllocation *depth = nullptr;
-    if (fb->mHal.state.depthTarget != nullptr) {
+    DrvAllocation *depth = NULL;
+    if (fb->mHal.state.depthTarget != NULL) {
         depth = (DrvAllocation *)fb->mHal.state.depthTarget->mHal.drv;
 
         if (depth->uploadDeferred) {
@@ -48,8 +48,8 @@ void setColorAttachment(const Context *rsc, const FBOCache *fb) {
     RsdFrameBufferObj *fbo = (RsdFrameBufferObj*)fb->mHal.drv;
     // Now attach color targets
     for (uint32_t i = 0; i < fb->mHal.state.colorTargetsCount; i ++) {
-        DrvAllocation *color = nullptr;
-        if (fb->mHal.state.colorTargets[i] != nullptr) {
+        DrvAllocation *color = NULL;
+        if (fb->mHal.state.colorTargets[i] != NULL) {
             color = (DrvAllocation *)fb->mHal.state.colorTargets[i]->mHal.drv;
 
             if (color->uploadDeferred) {
@@ -63,7 +63,7 @@ void setColorAttachment(const Context *rsc, const FBOCache *fb) {
 
 bool rsdFrameBufferInit(const Context *rsc, const FBOCache *fb) {
     RsdFrameBufferObj *fbo = new RsdFrameBufferObj();
-    if (fbo == nullptr) {
+    if (fbo == NULL) {
         return false;
     }
     fb->mHal.drv = fbo;
@@ -93,7 +93,7 @@ void rsdFrameBufferSetActive(const Context *rsc, const FBOCache *fb) {
 void rsdFrameBufferDestroy(const Context *rsc, const FBOCache *fb) {
     RsdFrameBufferObj *fbo = (RsdFrameBufferObj *)fb->mHal.drv;
     delete fbo;
-    fb->mHal.drv = nullptr;
+    fb->mHal.drv = NULL;
 }
 
 

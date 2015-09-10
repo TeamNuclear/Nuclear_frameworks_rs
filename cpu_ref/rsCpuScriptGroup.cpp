@@ -18,13 +18,15 @@
 #include "rsCpuScript.h"
 #include "rsScriptGroup.h"
 #include "rsCpuScriptGroup.h"
+//#include "rsdBcc.h"
+//#include "rsdAllocation.h"
 
 using namespace android;
 using namespace android::renderscript;
 
-CpuScriptGroupImpl::CpuScriptGroupImpl(RsdCpuReferenceImpl *ctx, const ScriptGroupBase *sg) {
+CpuScriptGroupImpl::CpuScriptGroupImpl(RsdCpuReferenceImpl *ctx, const ScriptGroup *sg) {
     mCtx = ctx;
-    mSG = (ScriptGroup*)sg;
+    mSG = sg;
 }
 
 CpuScriptGroupImpl::~CpuScriptGroupImpl() {
@@ -42,83 +44,66 @@ void CpuScriptGroupImpl::setOutput(const ScriptKernelID *kid, Allocation *a) {
 }
 
 
-typedef void (*ScriptGroupRootFunc_t)(const RsExpandKernelDriverInfo *kinfo,
+typedef void (*ScriptGroupRootFunc_t)(const RsForEachStubParamStruct *p,
                                       uint32_t xstart, uint32_t xend,
-                                      uint32_t outstep);
+                                      uint32_t instep, uint32_t outstep);
 
-void CpuScriptGroupImpl::scriptGroupRoot(const RsExpandKernelDriverInfo *kinfo,
+void CpuScriptGroupImpl::scriptGroupRoot(const RsForEachStubParamStruct *p,
                                          uint32_t xstart, uint32_t xend,
-                                         uint32_t outstep) {
+                                         uint32_t instep, uint32_t outstep) {
 
 
-    const ScriptList *sl             = (const ScriptList *)kinfo->usr;
-    RsExpandKernelDriverInfo *mkinfo = const_cast<RsExpandKernelDriverInfo *>(kinfo);
+    const ScriptList *sl = (const ScriptList *)p->usr;
+    RsForEachStubParamStruct *mp = (RsForEachStubParamStruct *)p;
+    const void *oldUsr = p->usr;
 
-    const uint32_t oldInStride = mkinfo->inStride[0];
-
-    for (size_t ct = 0; ct < sl->count; ct++) {
+    for(size_t ct=0; ct < sl->count; ct++) {
         ScriptGroupRootFunc_t func;
-        func          = (ScriptGroupRootFunc_t)sl->fnPtrs[ct];
-        mkinfo->usr   = sl->usrPtrs[ct];
+        func = (ScriptGroupRootFunc_t)sl->fnPtrs[ct];
+        mp->usr = sl->usrPtrs[ct];
+
+        mp->ptrIn = NULL;
+        mp->in = NULL;
+        mp->ptrOut = NULL;
+        mp->out = NULL;
+
+        uint32_t istep = 0;
+        uint32_t ostep = 0;
 
         if (sl->ins[ct]) {
-            rsAssert(kinfo->inLen == 1);
-
-            mkinfo->inPtr[0] = (const uint8_t *)sl->ins[ct]->mHal.drvState.lod[0].mallocPtr;
-
-            mkinfo->inStride[0] = sl->ins[ct]->mHal.state.elementSizeBytes;
-
+            mp->ptrIn = (const uint8_t *)sl->ins[ct]->mHal.drvState.lod[0].mallocPtr;
+            istep = sl->ins[ct]->mHal.state.elementSizeBytes;
+            mp->in = mp->ptrIn;
             if (sl->inExts[ct]) {
-                mkinfo->inPtr[0] =
-                  (mkinfo->inPtr[0] +
-                   sl->ins[ct]->mHal.drvState.lod[0].stride * kinfo->current.y);
-
-            } else if (sl->ins[ct]->mHal.drvState.lod[0].dimY > kinfo->lid) {
-                mkinfo->inPtr[0] =
-                  (mkinfo->inPtr[0] +
-                   sl->ins[ct]->mHal.drvState.lod[0].stride * kinfo->lid);
+                mp->in = mp->ptrIn + sl->ins[ct]->mHal.drvState.lod[0].stride * p->y;
+            } else {
+                if (sl->ins[ct]->mHal.drvState.lod[0].dimY > p->lid) {
+                    mp->in = mp->ptrIn + sl->ins[ct]->mHal.drvState.lod[0].stride * p->lid;
+                }
             }
-
-        } else {
-            rsAssert(kinfo->inLen == 0);
-
-            mkinfo->inPtr[0]     = nullptr;
-            mkinfo->inStride[0]  = 0;
         }
 
-        uint32_t ostep;
         if (sl->outs[ct]) {
-            rsAssert(kinfo->outLen == 1);
-
-            mkinfo->outPtr[0] =
-              (uint8_t *)sl->outs[ct]->mHal.drvState.lod[0].mallocPtr;
-
+            mp->ptrOut = (uint8_t *)sl->outs[ct]->mHal.drvState.lod[0].mallocPtr;
+            mp->out = mp->ptrOut;
             ostep = sl->outs[ct]->mHal.state.elementSizeBytes;
-
             if (sl->outExts[ct]) {
-                mkinfo->outPtr[0] =
-                  mkinfo->outPtr[0] +
-                  sl->outs[ct]->mHal.drvState.lod[0].stride * kinfo->current.y;
-
-            } else if (sl->outs[ct]->mHal.drvState.lod[0].dimY > kinfo->lid) {
-                mkinfo->outPtr[0] =
-                  mkinfo->outPtr[0] +
-                  sl->outs[ct]->mHal.drvState.lod[0].stride * kinfo->lid;
+                mp->out = mp->ptrOut + sl->outs[ct]->mHal.drvState.lod[0].stride * p->y;
+            } else {
+                if (sl->outs[ct]->mHal.drvState.lod[0].dimY > p->lid) {
+                    mp->out = mp->ptrOut + sl->outs[ct]->mHal.drvState.lod[0].stride * p->lid;
+                }
             }
-        } else {
-            rsAssert(kinfo->outLen == 0);
-
-            mkinfo->outPtr[0] = nullptr;
-            ostep             = 0;
         }
 
         //ALOGE("kernel %i %p,%p  %p,%p", ct, mp->ptrIn, mp->in, mp->ptrOut, mp->out);
-        func(kinfo, xstart, xend, ostep);
+        func(p, xstart, xend, istep, ostep);
     }
     //ALOGE("script group root");
 
-    mkinfo->inStride[0] = oldInStride;
-    mkinfo->usr         = sl;
+    //ConvolveParams *cp = (ConvolveParams *)p->usr;
+
+    mp->usr = oldUsr;
 }
 
 
@@ -151,8 +136,8 @@ void CpuScriptGroupImpl::execute() {
 
         for (size_t ct2=0; ct2 < n->mKernels.size(); ct2++) {
             const ScriptKernelID *k = n->mKernels[ct2];
-            Allocation *ain = nullptr;
-            Allocation *aout = nullptr;
+            Allocation *ain = NULL;
+            Allocation *aout = NULL;
             bool inExt = false;
             bool outExt = false;
 
@@ -162,7 +147,7 @@ void CpuScriptGroupImpl::execute() {
                     break;
                 }
             }
-            if (ain == nullptr) {
+            if (ain == NULL) {
                 for (size_t ct3=0; ct3 < mSG->mInputs.size(); ct3++) {
                     if (mSG->mInputs[ct3]->mKernel == k) {
                         ain = mSG->mInputs[ct3]->mAlloc.get();
@@ -175,13 +160,13 @@ void CpuScriptGroupImpl::execute() {
             for (size_t ct3=0; ct3 < n->mOutputs.size(); ct3++) {
                 if (n->mOutputs[ct3]->mSource.get() == k) {
                     aout = n->mOutputs[ct3]->mAlloc.get();
-                    if(n->mOutputs[ct3]->mDstField.get() != nullptr) {
+                    if(n->mOutputs[ct3]->mDstField.get() != NULL) {
                         fieldDep = true;
                     }
                     break;
                 }
             }
-            if (aout == nullptr) {
+            if (aout == NULL) {
                 for (size_t ct3=0; ct3 < mSG->mOutputs.size(); ct3++) {
                     if (mSG->mOutputs[ct3]->mKernel == k) {
                         aout = mSG->mOutputs[ct3]->mAlloc.get();
@@ -191,8 +176,8 @@ void CpuScriptGroupImpl::execute() {
                 }
             }
 
-            rsAssert((k->mHasKernelOutput == (aout != nullptr)) &&
-                     (k->mHasKernelInput == (ain != nullptr)));
+            rsAssert((k->mHasKernelOutput == (aout != NULL)) &&
+                     (k->mHasKernelInput == (ain != NULL)));
 
             ins.add(ain);
             inExts.add(inExt);
@@ -203,37 +188,19 @@ void CpuScriptGroupImpl::execute() {
 
     }
 
-    MTLaunchStructForEach mtls;
+    MTLaunchStruct mtls;
 
-    if (fieldDep) {
+    if(fieldDep) {
         for (size_t ct=0; ct < ins.size(); ct++) {
             Script *s = kernels[ct]->mScript;
             RsdCpuScriptImpl *si = (RsdCpuScriptImpl *)mCtx->lookupScript(s);
             uint32_t slot = kernels[ct]->mSlot;
 
-            uint32_t inLen;
-            const Allocation **ains;
-
-            if (ins[ct] == nullptr) {
-                inLen = 0;
-                ains  = nullptr;
-
-            } else {
-                inLen = 1;
-                ains  = const_cast<const Allocation**>(&ins[ct]);
-            }
-
-            bool launchOK = si->forEachMtlsSetup(ains, inLen, outs[ct], nullptr, 0, nullptr, &mtls);
-
+            si->forEachMtlsSetup(ins[ct], outs[ct], NULL, 0, NULL, &mtls);
             si->forEachKernelSetup(slot, &mtls);
-            si->preLaunch(slot, ains, inLen, outs[ct], mtls.fep.usr,
-                          mtls.fep.usrLen, nullptr);
-
-            if (launchOK) {
-                mCtx->launchForEach(ains, inLen, outs[ct], nullptr, &mtls);
-            }
-
-            si->postLaunch(slot, ains, inLen, outs[ct], nullptr, 0, nullptr);
+            si->preLaunch(slot, ins[ct], outs[ct], mtls.fep.usr, mtls.fep.usrLen, NULL);
+            mCtx->launchThreads(ins[ct], outs[ct], NULL, &mtls);
+            si->postLaunch(slot, ins[ct], outs[ct], NULL, 0, NULL);
         }
     } else {
         ScriptList sl;
@@ -241,18 +208,6 @@ void CpuScriptGroupImpl::execute() {
         sl.outs = outs.array();
         sl.kernels = kernels.array();
         sl.count = kernels.size();
-
-        uint32_t inLen;
-        const Allocation **ains;
-
-        if (ins[0] == nullptr) {
-            inLen = 0;
-            ains  = nullptr;
-
-        } else {
-            inLen = 1;
-            ains  = const_cast<const Allocation**>(&ins[0]);
-        }
 
         Vector<const void *> usrPtrs;
         Vector<const void *> fnPtrs;
@@ -265,8 +220,7 @@ void CpuScriptGroupImpl::execute() {
             fnPtrs.add((void *)mtls.kernel);
             usrPtrs.add(mtls.fep.usr);
             sigs.add(mtls.fep.usrLen);
-            si->preLaunch(kernels[ct]->mSlot, ains, inLen, outs[ct],
-                          mtls.fep.usr, mtls.fep.usrLen, nullptr);
+            si->preLaunch(kernels[ct]->mSlot, ins[ct], outs[ct], mtls.fep.usr, mtls.fep.usrLen, NULL);
         }
         sl.sigs = sigs.array();
         sl.usrPtrs = usrPtrs.array();
@@ -276,21 +230,18 @@ void CpuScriptGroupImpl::execute() {
 
         Script *s = kernels[0]->mScript;
         RsdCpuScriptImpl *si = (RsdCpuScriptImpl *)mCtx->lookupScript(s);
-
-        if (si->forEachMtlsSetup(ains, inLen, outs[0], nullptr, 0, nullptr, &mtls)) {
-
-            mtls.script = nullptr;
-            mtls.kernel = &scriptGroupRoot;
-            mtls.fep.usr = &sl;
-
-            mCtx->launchForEach(ains, inLen, outs[0], nullptr, &mtls);
-        }
+        si->forEachMtlsSetup(ins[0], outs[0], NULL, 0, NULL, &mtls);
+        mtls.script = NULL;
+        mtls.kernel = (void (*)())&scriptGroupRoot;
+        mtls.fep.usr = &sl;
+        mCtx->launchThreads(ins[0], outs[0], NULL, &mtls);
 
         for (size_t ct=0; ct < kernels.size(); ct++) {
             Script *s = kernels[ct]->mScript;
             RsdCpuScriptImpl *si = (RsdCpuScriptImpl *)mCtx->lookupScript(s);
-            si->postLaunch(kernels[ct]->mSlot, ains, inLen, outs[ct], nullptr, 0,
-                           nullptr);
+            si->postLaunch(kernels[ct]->mSlot, ins[ct], outs[ct], NULL, 0, NULL);
         }
     }
 }
+
+

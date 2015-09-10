@@ -1,6 +1,8 @@
 #include <stdint.h>
 
 
+typedef void * RsAdapter1D;
+typedef void * RsAdapter2D;
 typedef void * RsAllocation;
 typedef void * RsContext;
 typedef void * RsDevice;
@@ -25,7 +27,3 @@ typedef struct {
 #define RS_PROGRAM_VERTEX_PROJECTION_OFFSET 16
 #define RS_PROGRAM_VERTEX_TEXTURE_OFFSET 32
 #define RS_PROGRAM_VERTEX_MVP_OFFSET 48
-
-#define RS_KERNEL_MAX_ARGUMENTS 256
-#define RS_CLOSURE_MAX_NUMBER_ARGS_AND_BINDINGS 1024
-#define RS_SCRIPT_GROUP_MAX_NUMBER_CLOSURES (2<<20)

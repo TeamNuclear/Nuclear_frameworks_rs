@@ -4,7 +4,7 @@
 MY_ANDROID_DIR=$PWD/../../
 cd $MY_ANDROID_DIR
 
-if [ $OSTYPE == 'darwin13' ] || [ $OSTYPE == 'darwin14' ];
+if [ $OSTYPE == 'darwin13' ];
 then
 
   DARWIN=1
@@ -161,21 +161,14 @@ libc++.$SONAME
 libLLVM.$SONAME
 "
 
-TOOLS_LIB32="libc++.$SONAME"
-
 for a in $TOOLS_BIN; do
-  cp $ANDROID_HOST_OUT/bin/$a tools/$SHORT_OSNAME/bin
-  strip tools/$SHORT_OSNAME/bin/$a
+  cp $ANDROID_HOST_OUT/bin/$a tools/$SHORT_OSNAME/
+  strip tools/$SHORT_OSNAME/$a
 done
 
 for a in $TOOLS_LIB; do
-  cp $HOST_LIB64_DIR/$a tools/$SHORT_OSNAME/lib64
-  strip tools/$SHORT_OSNAME/lib64/$a
-done
-
-for a in $TOOLS_LIB32; do
-  cp $HOST_LIB_DIR/$a tools/$SHORT_OSNAME/lib
-  strip tools/$SHORT_OSNAME/lib/$a
+  cp $ANDROID_HOST_OUT/lib/$a tools/$SHORT_OSNAME/
+  strip tools/$SHORT_OSNAME/$a
 done
 
 if [ $DARWIN -eq 0 ]; then

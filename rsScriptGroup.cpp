@@ -14,19 +14,13 @@
  * limitations under the License.
  */
 
-#include "rsScriptGroup.h"
-
 #include "rsContext.h"
-// TODO: Is this header needed here?
-#include "rsScriptGroup2.h"
-
-#include <algorithm>
 #include <time.h>
 
 using namespace android;
 using namespace android::renderscript;
 
-ScriptGroup::ScriptGroup(Context *rsc) : ScriptGroupBase(rsc) {
+ScriptGroup::ScriptGroup(Context *rsc) : ObjectBase(rsc) {
 }
 
 ScriptGroup::~ScriptGroup() {
@@ -36,14 +30,6 @@ ScriptGroup::~ScriptGroup() {
 
     for (size_t ct=0; ct < mLinks.size(); ct++) {
         delete mLinks[ct];
-    }
-
-    for (auto input : mInputs) {
-        input->mAlloc.clear();
-    }
-
-    for (auto output : mOutputs) {
-        output->mAlloc.clear();
     }
 }
 
@@ -67,8 +53,7 @@ ScriptGroup::Node * ScriptGroup::findNode(Script *s) const {
             }
         }
     }
-
-    return nullptr;
+    return NULL;
 }
 
 bool ScriptGroup::calcOrderRecurse(Node *n, int depth) {
@@ -77,7 +62,6 @@ bool ScriptGroup::calcOrderRecurse(Node *n, int depth) {
         n->mOrder = depth;
     }
     bool ret = true;
-
     for (size_t ct=0; ct < n->mOutputs.size(); ct++) {
         const Link *l = n->mOutputs[ct];
         Node *nt = NULL;
@@ -117,7 +101,6 @@ public:
 
 bool ScriptGroup::calcOrder() {
     // Make nodes
-
     for (size_t ct=0; ct < mKernels.size(); ct++) {
         const ScriptKernelID *k = mKernels[ct].get();
         //ALOGE(" kernel %i, %p  s=%p", (int)ct, k, mKernels[ct]->mScript);
@@ -300,14 +283,14 @@ void ScriptGroup::setOutput(Context *rsc, ScriptKernelID *kid, Allocation *a) {
 
 bool ScriptGroup::validateInputAndOutput(Context *rsc) {
     for(size_t i = 0; i < mInputs.size(); i++) {
-        if (mInputs[i]->mAlloc.get() == nullptr) {
+        if (mInputs[i]->mAlloc.get() == NULL) {
             rsc->setError(RS_ERROR_BAD_VALUE, "ScriptGroup missing input.");
             return false;
         }
     }
 
     for(size_t i = 0; i < mOutputs.size(); i++) {
-        if (mOutputs[i]->mAlloc.get() == nullptr) {
+        if (mOutputs[i]->mAlloc.get() == NULL) {
             rsc->setError(RS_ERROR_BAD_VALUE, "ScriptGroup missing output.");
             return false;
         }
@@ -317,10 +300,12 @@ bool ScriptGroup::validateInputAndOutput(Context *rsc) {
 }
 
 void ScriptGroup::execute(Context *rsc) {
+
     if (!validateInputAndOutput(rsc)) {
         return;
     }
 
+    //ALOGE("ScriptGroup::execute");
     if (rsc->mHal.funcs.scriptgroup.execute) {
         rsc->mHal.funcs.scriptgroup.execute(rsc, this);
         return;
@@ -361,19 +346,18 @@ void ScriptGroup::execute(Context *rsc) {
                 }
             }
 
-            if (ain == NULL) {
-                n->mScript->runForEach(rsc, k->mSlot, NULL, 0, aout, NULL, 0);
-
-            } else {
-                const Allocation *ains[1] = {ain};
-                n->mScript->runForEach(rsc, k->mSlot, ains,
-                                       sizeof(ains) / sizeof(RsAllocation),
-                                       aout, NULL, 0);
-            }
+            n->mScript->runForEach(rsc, k->mSlot, ain, aout, NULL, 0);
         }
 
     }
 
+}
+
+void ScriptGroup::serialize(Context *rsc, OStream *stream) const {
+}
+
+RsA3DClassID ScriptGroup::getClassId() const {
+    return RS_A3D_CLASS_ID_SCRIPT_GROUP;
 }
 
 ScriptGroup::Link::Link() {
@@ -418,9 +402,11 @@ void rsi_ScriptGroupSetOutput(Context *rsc, RsScriptGroup sg, RsScriptKernelID k
 }
 
 void rsi_ScriptGroupExecute(Context *rsc, RsScriptGroup sg) {
-    ScriptGroupBase *s = (ScriptGroupBase *)sg;
+    //ALOGE("rsi_ScriptGroupExecute");
+    ScriptGroup *s = (ScriptGroup *)sg;
     s->execute(rsc);
 }
 
 }
 }
+

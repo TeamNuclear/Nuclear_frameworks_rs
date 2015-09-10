@@ -12,11 +12,11 @@ typedef struct TestResult_s {
 
 static int64_t g_time;
 
-static inline void start(void) {
+static void start(void) {
     g_time = rsUptimeMillis();
 }
 
-static inline float end(uint32_t idx) {
+static float end(uint32_t idx) {
     int64_t t = rsUptimeMillis() - g_time;
     //g_results[idx].time = t;
     //rsDebug("test time", (int)t);
@@ -32,48 +32,45 @@ do { \
 \
 } while (0)
 
-#define _RS_ASSERT_EQU(e1, e2) \
-  (((e1) != (e2)) ? (failed = true, rsDebug(#e1 " != " #e2, (e1), (e2)), false) : true)
-
 static const int iposinf = 0x7f800000;
 static const int ineginf = 0xff800000;
 
-static inline const float posinf() {
+static const float posinf() {
     float f = *((float*)&iposinf);
     return f;
 }
 
-static inline const float neginf() {
+static const float neginf() {
     float f = *((float*)&ineginf);
     return f;
 }
 
-static inline bool isposinf(float f) {
+static bool isposinf(float f) {
     int i = *((int*)(void*)&f);
     return (i == iposinf);
 }
 
-static inline bool isneginf(float f) {
+static bool isneginf(float f) {
     int i = *((int*)(void*)&f);
     return (i == ineginf);
 }
 
-static inline bool isnan(float f) {
+static bool isnan(float f) {
     int i = *((int*)(void*)&f);
     return (((i & 0x7f800000) == 0x7f800000) && (i & 0x007fffff));
 }
 
-static inline bool isposzero(float f) {
+static bool isposzero(float f) {
     int i = *((int*)(void*)&f);
     return (i == 0x00000000);
 }
 
-static inline bool isnegzero(float f) {
+static bool isnegzero(float f) {
     int i = *((int*)(void*)&f);
     return (i == 0x80000000);
 }
 
-static inline bool iszero(float f) {
+static bool iszero(float f) {
     return isposzero(f) || isnegzero(f);
 }
 
@@ -87,13 +84,13 @@ static inline bool iszero(float f) {
 
 /* Calculate the difference in ULPs between the two values.  (Return zero on
    perfect equality.) */
-static inline int float_dist(float f1, float f2) {
+static int float_dist(float f1, float f2) {
     return *((int *)(&f1)) - *((int *)(&f2));
 }
 
 /* Check if two floats are essentially equal.  Will fail with some values
    due to design.  (Validate using FLT_EPSILON or similar if necessary.) */
-static inline bool float_almost_equal(float f1, float f2) {
+static bool float_almost_equal(float f1, float f2) {
     int *i1 = (int*)(&f1);
     int *i2 = (int*)(&f2);
 
@@ -114,3 +111,4 @@ static inline bool float_almost_equal(float f1, float f2) {
 /* These constants must match those in UnitTest.java */
 static const int RS_MSG_TEST_PASSED = 100;
 static const int RS_MSG_TEST_FAILED = 101;
+

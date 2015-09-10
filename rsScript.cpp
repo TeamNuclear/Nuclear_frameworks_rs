@@ -24,21 +24,20 @@ Script::Script(Context *rsc) : ObjectBase(rsc) {
     memset(&mEnviroment, 0, sizeof(mEnviroment));
     memset(&mHal, 0, sizeof(mHal));
 
-    mSlots = nullptr;
-    mTypes = nullptr;
+    mSlots = NULL;
+    mTypes = NULL;
     mInitialized = false;
     mHasObjectSlots = false;
-    mApiLevel = 0;
 }
 
 Script::~Script() {
     if (mSlots) {
         delete [] mSlots;
-        mSlots = nullptr;
+        mSlots = NULL;
     }
     if (mTypes) {
         delete [] mTypes;
-        mTypes = nullptr;
+        mTypes = NULL;
     }
 }
 
@@ -48,8 +47,6 @@ void Script::setSlot(uint32_t slot, Allocation *a) {
         ALOGE("Script::setSlot unable to set allocation, invalid slot index");
         return;
     }
-
-    if (mRSC->hadFatalError()) return;
 
     mSlots[slot].set(a);
     mHasObjectSlots = true;
@@ -62,8 +59,6 @@ void Script::setVar(uint32_t slot, const void *val, size_t len) {
         ALOGE("Script::setVar unable to set allocation, invalid slot index");
         return;
     }
-    if (mRSC->hadFatalError()) return;
-
     mRSC->mHal.funcs.script.setGlobalVar(mRSC, this, slot, (void *)val, len);
 }
 
@@ -74,8 +69,6 @@ void Script::getVar(uint32_t slot, const void *val, size_t len) {
               "%u >= %zu", slot, mHal.info.exportedVariableCount);
         return;
     }
-    if (mRSC->hadFatalError()) return;
-
     mRSC->mHal.funcs.script.getGlobalVar(mRSC, this, slot, (void *)val, len);
 }
 
@@ -86,8 +79,6 @@ void Script::setVar(uint32_t slot, const void *val, size_t len, Element *e,
               "%u >= %zu", slot, mHal.info.exportedVariableCount);
         return;
     }
-    if (mRSC->hadFatalError()) return;
-
     mRSC->mHal.funcs.script.setGlobalVarWithElemDims(mRSC, this, slot,
             (void *)val, len, e, dims, dimLen);
 }
@@ -99,14 +90,12 @@ void Script::setVarObj(uint32_t slot, ObjectBase *val) {
               "%u >= %zu", slot, mHal.info.exportedVariableCount);
         return;
     }
-    if (mRSC->hadFatalError()) return;
-
     mHasObjectSlots = true;
     mRSC->mHal.funcs.script.setGlobalObj(mRSC, this, slot, val);
 }
 
 void Script::callUpdateCacheObject(const Context *rsc, void *dstObj) const {
-    if (rsc->mHal.funcs.script.updateCachedObject != nullptr) {
+    if (rsc->mHal.funcs.script.updateCachedObject != NULL) {
         rsc->mHal.funcs.script.updateCachedObject(rsc, this, (rs_script *)dstObj);
     } else {
         *((const void **)dstObj) = this;
@@ -120,25 +109,37 @@ bool Script::freeChildren() {
 }
 
 ScriptKernelID::ScriptKernelID(Context *rsc, Script *s, int slot, int sig)
-        : IDBase(rsc, s, slot) {
+        : ObjectBase(rsc) {
+
+    mScript = s;
+    mSlot = slot;
     mHasKernelInput = (sig & 1) != 0;
     mHasKernelOutput = (sig & 2) != 0;
+}
+
+ScriptKernelID::~ScriptKernelID() {
+
+}
+
+void ScriptKernelID::serialize(Context *rsc, OStream *stream) const {
+
 }
 
 RsA3DClassID ScriptKernelID::getClassId() const {
     return RS_A3D_CLASS_ID_SCRIPT_KERNEL_ID;
 }
 
-ScriptInvokeID::ScriptInvokeID(Context *rsc, Script *s, int slot)
-    : IDBase(rsc, s, slot) {
+ScriptFieldID::ScriptFieldID(Context *rsc, Script *s, int slot) : ObjectBase(rsc) {
+    mScript = s;
+    mSlot = slot;
 }
 
-RsA3DClassID ScriptInvokeID::getClassId() const {
-    return RS_A3D_CLASS_ID_SCRIPT_INVOKE_ID;
+ScriptFieldID::~ScriptFieldID() {
+
 }
 
-ScriptFieldID::ScriptFieldID(Context *rsc, Script *s, int slot) :
-    IDBase(rsc, s, slot) {
+void ScriptFieldID::serialize(Context *rsc, OStream *stream) const {
+
 }
 
 RsA3DClassID ScriptFieldID::getClassId() const {
@@ -155,12 +156,6 @@ RsScriptKernelID rsi_ScriptKernelIDCreate(Context *rsc, RsScript vs, int slot, i
     return kid;
 }
 
-RsScriptInvokeID rsi_ScriptInvokeIDCreate(Context *rsc, RsScript vs, uint32_t slot) {
-    ScriptInvokeID *iid = new ScriptInvokeID(rsc, (Script *)vs, slot);
-    iid->incUserRef();
-    return iid;
-}
-
 RsScriptFieldID rsi_ScriptFieldIDCreate(Context *rsc, RsScript vs, int slot) {
     ScriptFieldID *fid = new ScriptFieldID(rsc, (Script *)vs, slot);
     fid->incUserRef();
@@ -175,7 +170,7 @@ void rsi_ScriptBindAllocation(Context * rsc, RsScript vs, RsAllocation va, uint3
 
 void rsi_ScriptSetTimeZone(Context * rsc, RsScript vs, const char * timeZone, size_t length) {
     // We unfortunately need to make a new copy of the string, since it is
-    // not nullptr-terminated. We then use setenv(), which properly handles
+    // not NULL-terminated. We then use setenv(), which properly handles
     // freeing/duplicating the actual string for the environment.
     char *tz = (char *) malloc(length + 1);
     if (!tz) {
@@ -192,13 +187,38 @@ void rsi_ScriptSetTimeZone(Context * rsc, RsScript vs, const char * timeZone, si
     free(tz);
 }
 
+void rsi_ScriptForEach(Context *rsc, RsScript vs, uint32_t slot,
+                       RsAllocation vain, RsAllocation vaout,
+                       const void *params, size_t paramLen,
+                       const RsScriptCall *sc, size_t scLen) {
+    Script *s = static_cast<Script *>(vs);
+    // The rs.spec generated code does not handle the absence of an actual
+    // input for sc. Instead, it retains an existing pointer value (the prior
+    // field in the packed data object). This can cause confusion because
+    // drivers might now inspect bogus sc data.
+    if (scLen == 0) {
+        sc = NULL;
+    }
+    s->runForEach(rsc, slot,
+                  static_cast<const Allocation *>(vain), static_cast<Allocation *>(vaout),
+                  params, paramLen, sc);
+
+}
+
 void rsi_ScriptForEachMulti(Context *rsc, RsScript vs, uint32_t slot,
                             RsAllocation *vains, size_t inLen,
                             RsAllocation vaout, const void *params,
                             size_t paramLen, const RsScriptCall *sc,
                             size_t scLen) {
+    Script *s = static_cast<Script *>(vs);
+    // The rs.spec generated code does not handle the absence of an actual
+    // input for sc. Instead, it retains an existing pointer value (the prior
+    // field in the packed data object). This can cause confusion because
+    // drivers might now inspect bogus sc data.
+    if (scLen == 0) {
+        sc = NULL;
+    }
 
-    Script      *s    = static_cast<Script *>(vs);
     Allocation **ains = (Allocation**)(vains);
 
     s->runForEach(rsc, slot,
@@ -207,40 +227,15 @@ void rsi_ScriptForEachMulti(Context *rsc, RsScript vs, uint32_t slot,
 
 }
 
-void rsi_ScriptForEach(Context *rsc, RsScript vs, uint32_t slot,
-                       RsAllocation vain, RsAllocation vaout,
-                       const void *params, size_t paramLen,
-                       const RsScriptCall *sc, size_t scLen) {
-
-    if (vain == nullptr) {
-        rsi_ScriptForEachMulti(rsc, vs, slot, nullptr, 0, vaout, params, paramLen,
-                               sc, scLen);
-    } else {
-        RsAllocation ains[1] = {vain};
-
-        rsi_ScriptForEachMulti(rsc, vs, slot, ains,
-                               sizeof(ains) / sizeof(RsAllocation), vaout,
-                               params, paramLen, sc, scLen);
-    }
-}
-
-void rsi_ScriptReduce(Context *rsc, RsScript vs, uint32_t slot,
-                      RsAllocation vain, RsAllocation vaout,
-                      const RsScriptCall *sc, size_t scLen) {
-    Script *s = static_cast<Script *>(vs);
-    s->runReduce(rsc, slot, static_cast<const Allocation *>(vain),
-                            static_cast<Allocation *>(vaout), sc);
-}
-
 void rsi_ScriptInvoke(Context *rsc, RsScript vs, uint32_t slot) {
     Script *s = static_cast<Script *>(vs);
-    s->Invoke(rsc, slot, nullptr, 0);
+    s->Invoke(rsc, slot, NULL, 0);
 }
 
 
 void rsi_ScriptInvokeData(Context *rsc, RsScript vs, uint32_t slot, void *data) {
     Script *s = static_cast<Script *>(vs);
-    s->Invoke(rsc, slot, nullptr, 0);
+    s->Invoke(rsc, slot, NULL, 0);
 }
 
 void rsi_ScriptInvokeV(Context *rsc, RsScript vs, uint32_t slot, const void *data, size_t len) {

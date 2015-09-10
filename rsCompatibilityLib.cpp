@@ -21,11 +21,8 @@
 // Implementation of property_get from libcutils
 int property_get(const char *key, char *value, const char *default_value) {
     int len;
-#ifndef __LP64__
+
     len = __system_property_get(key, value);
-#else
-    len = 0;
-#endif
     if (len > 0) {
         return len;
     }
@@ -35,6 +32,5 @@ int property_get(const char *key, char *value, const char *default_value) {
         memcpy(value, default_value, len + 1);
     }
     return len;
-
 }
 
