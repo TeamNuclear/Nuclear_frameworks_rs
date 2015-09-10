@@ -47,6 +47,7 @@
 using namespace android;
 using namespace android::renderscript;
 
+
 #ifndef RS_COMPATIBILITY_LIB
 const static GLenum gFaceOrder[] = {
     GL_TEXTURE_CUBE_MAP_POSITIVE_X,
@@ -192,7 +193,7 @@ static void UploadToTexture(const Context *rsc, const Allocation *alloc) {
     if (!(alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_SCRIPT)) {
         if (alloc->mHal.drvState.lod[0].mallocPtr) {
             free(alloc->mHal.drvState.lod[0].mallocPtr);
-            alloc->mHal.drvState.lod[0].mallocPtr = nullptr;
+            alloc->mHal.drvState.lod[0].mallocPtr = NULL;
         }
     }
     rsdGLCheckError(rsc, "UploadToTexture");
@@ -252,15 +253,6 @@ static void UploadToBufferObject(const Context *rsc, const Allocation *alloc) {
 
 
 static size_t DeriveYUVLayout(int yuv, Allocation::Hal::DrvState *state) {
-#ifndef RS_COMPATIBILITY_LIB
-    // For the flexible YCbCr format, layout is initialized during call to
-    // Allocation::ioReceive.  Return early and avoid clobberring any
-    // pre-existing layout.
-    if (yuv == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-        return 0;
-    }
-#endif
-
     // YUV only supports basic 2d
     // so we can stash the plane pointers in the mipmap levels.
     size_t uvSize = 0;
@@ -295,6 +287,11 @@ static size_t DeriveYUVLayout(int yuv, Allocation::Hal::DrvState *state) {
         uvSize += state->lod[1].stride * state->lod[1].dimY;
         state->yuv.step = 2;
         break;
+#ifndef RS_COMPATIBILITY_LIB
+    case HAL_PIXEL_FORMAT_YCbCr_420_888:
+        // This will be filled in by ioReceive()
+        break;
+#endif
     default:
         rsAssert(0);
     }
@@ -302,15 +299,16 @@ static size_t DeriveYUVLayout(int yuv, Allocation::Hal::DrvState *state) {
     return uvSize;
 }
 
+
 static size_t AllocationBuildPointerTable(const Context *rsc, const Allocation *alloc,
-                                          const Type *type, uint8_t *ptr, size_t requiredAlignment) {
+        const Type *type, uint8_t *ptr) {
     alloc->mHal.drvState.lod[0].dimX = type->getDimX();
     alloc->mHal.drvState.lod[0].dimY = type->getDimY();
     alloc->mHal.drvState.lod[0].dimZ = type->getDimZ();
     alloc->mHal.drvState.lod[0].mallocPtr = 0;
-    // Stride needs to be aligned to a boundary defined by requiredAlignment!
+    // Stride needs to be 16-byte aligned too!
     size_t stride = alloc->mHal.drvState.lod[0].dimX * type->getElementSizeBytes();
-    alloc->mHal.drvState.lod[0].stride = rsRound(stride, requiredAlignment);
+    alloc->mHal.drvState.lod[0].stride = rsRound(stride, 16);
     alloc->mHal.drvState.lodCount = type->getLODCount();
     alloc->mHal.drvState.faceCount = type->getDimFaces();
 
@@ -334,7 +332,7 @@ static size_t AllocationBuildPointerTable(const Context *rsc, const Allocation *
             alloc->mHal.drvState.lod[lod].dimY = ty;
             alloc->mHal.drvState.lod[lod].dimZ = tz;
             alloc->mHal.drvState.lod[lod].stride =
-                    rsRound(tx * type->getElementSizeBytes(), requiredAlignment);
+                    rsRound(tx * type->getElementSizeBytes(), 16);
             offsets[lod] = o;
             o += alloc->mHal.drvState.lod[lod].stride * rsMax(ty, 1u) * rsMax(tz, 1u);
             if (tx > 1) tx >>= 1;
@@ -358,16 +356,11 @@ static size_t AllocationBuildPointerTable(const Context *rsc, const Allocation *
     return allocSize;
 }
 
-static size_t AllocationBuildPointerTable(const Context *rsc, const Allocation *alloc,
-                                          const Type *type, uint8_t *ptr) {
-    return AllocationBuildPointerTable(rsc, alloc, type, ptr, Allocation::kMinimumRSAlignment);
-}
-
-static uint8_t* allocAlignedMemory(size_t allocSize, bool forceZero, size_t requiredAlignment) {
-    // We align all allocations to a boundary defined by requiredAlignment.
-    uint8_t* ptr = (uint8_t *)memalign(requiredAlignment, allocSize);
+static uint8_t* allocAlignedMemory(size_t allocSize, bool forceZero) {
+    // We align all allocations to a 16-byte boundary.
+    uint8_t* ptr = (uint8_t *)memalign(16, allocSize);
     if (!ptr) {
-        return nullptr;
+        return NULL;
     }
     if (forceZero) {
         memset(ptr, 0, allocSize);
@@ -375,42 +368,23 @@ static uint8_t* allocAlignedMemory(size_t allocSize, bool forceZero, size_t requ
     return ptr;
 }
 
-bool rsdAllocationInitStrided(const Context *rsc, Allocation *alloc, bool forceZero, size_t requiredAlignment) {
+bool rsdAllocationInit(const Context *rsc, Allocation *alloc, bool forceZero) {
     DrvAllocation *drv = (DrvAllocation *)calloc(1, sizeof(DrvAllocation));
     if (!drv) {
         return false;
     }
     alloc->mHal.drv = drv;
 
-    // Check if requiredAlignment is power of 2, also requiredAlignment should be larger or equal than kMinimumRSAlignment.
-    if ((requiredAlignment & (requiredAlignment-1)) != 0 || requiredAlignment < Allocation::kMinimumRSAlignment) {
-        ALOGE("requiredAlignment must be power of 2");
-        return false;
-    }
     // Calculate the object size.
-    size_t allocSize = AllocationBuildPointerTable(rsc, alloc, alloc->getType(), nullptr, requiredAlignment);
+    size_t allocSize = AllocationBuildPointerTable(rsc, alloc, alloc->getType(), NULL);
 
-    uint8_t * ptr = nullptr;
+    uint8_t * ptr = NULL;
     if (alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_IO_OUTPUT) {
 
     } else if (alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_IO_INPUT) {
         // Allocation is allocated when the surface is created
         // in getSurface
-#ifdef RS_COMPATIBILITY_LIB
-    } else if (alloc->mHal.state.usageFlags == (RS_ALLOCATION_USAGE_INCREMENTAL_SUPPORT | RS_ALLOCATION_USAGE_SHARED)) {
-        if (alloc->mHal.state.userProvidedPtr == nullptr) {
-            ALOGE("User-backed buffer pointer cannot be null");
-            return false;
-        }
-        if (alloc->getType()->getDimLOD() || alloc->getType()->getDimFaces()) {
-            ALOGE("User-allocated buffers must not have multiple faces or LODs");
-            return false;
-        }
-
-        drv->useUserProvidedPtr = true;
-        ptr = (uint8_t*)alloc->mHal.state.userProvidedPtr;
-#endif
-    } else if (alloc->mHal.state.userProvidedPtr != nullptr) {
+    } else if (alloc->mHal.state.userProvidedPtr != NULL) {
         // user-provided allocation
         // limitations: no faces, no LOD, USAGE_SCRIPT or SCRIPT+TEXTURE only
         if (!(alloc->mHal.state.usageFlags == (RS_ALLOCATION_USAGE_SCRIPT | RS_ALLOCATION_USAGE_SHARED) ||
@@ -423,15 +397,15 @@ bool rsdAllocationInitStrided(const Context *rsc, Allocation *alloc, bool forceZ
             return false;
         }
 
-        // rows must be aligned based on requiredAlignment.
+        // rows must be 16-byte aligned
         // validate that here, otherwise fall back to not use the user-backed allocation
-        if (((alloc->getType()->getDimX() * alloc->getType()->getElement()->getSizeBytes()) % requiredAlignment) != 0) {
+        if (((alloc->getType()->getDimX() * alloc->getType()->getElement()->getSizeBytes()) % 16) != 0) {
             ALOGV("User-backed allocation failed stride requirement, falling back to separate allocation");
             drv->useUserProvidedPtr = false;
 
-            ptr = allocAlignedMemory(allocSize, forceZero, requiredAlignment);
+            ptr = allocAlignedMemory(allocSize, forceZero);
             if (!ptr) {
-                alloc->mHal.drv = nullptr;
+                alloc->mHal.drv = NULL;
                 free(drv);
                 return false;
             }
@@ -441,15 +415,15 @@ bool rsdAllocationInitStrided(const Context *rsc, Allocation *alloc, bool forceZ
             ptr = (uint8_t*)alloc->mHal.state.userProvidedPtr;
         }
     } else {
-        ptr = allocAlignedMemory(allocSize, forceZero, requiredAlignment);
+        ptr = allocAlignedMemory(allocSize, forceZero);
         if (!ptr) {
-            alloc->mHal.drv = nullptr;
+            alloc->mHal.drv = NULL;
             free(drv);
             return false;
         }
     }
     // Build the pointer tables
-    size_t verifySize = AllocationBuildPointerTable(rsc, alloc, alloc->getType(), ptr, requiredAlignment);
+    size_t verifySize = AllocationBuildPointerTable(rsc, alloc, alloc->getType(), ptr);
     if(allocSize != verifySize) {
         rsAssert(!"Size mismatch");
     }
@@ -482,7 +456,7 @@ bool rsdAllocationInitStrided(const Context *rsc, Allocation *alloc, bool forceZ
     }
 
 
-    drv->readBackFBO = nullptr;
+    drv->readBackFBO = NULL;
 
     // fill out the initial state of the buffer if we couldn't use the user-provided ptr and USAGE_SHARED was accepted
     if ((alloc->mHal.state.userProvidedPtr != 0) && (drv->useUserProvidedPtr == false)) {
@@ -499,103 +473,61 @@ bool rsdAllocationInitStrided(const Context *rsc, Allocation *alloc, bool forceZ
     return true;
 }
 
-bool rsdAllocationInit(const Context *rsc, Allocation *alloc, bool forceZero) {
-    return rsdAllocationInitStrided(rsc, alloc, forceZero, Allocation::kMinimumRSAlignment);
-}
-
-void rsdAllocationAdapterOffset(const Context *rsc, const Allocation *alloc) {
-    //ALOGE("rsdAllocationAdapterOffset");
-
-    // Get a base pointer to the new LOD
-    const Allocation *base = alloc->mHal.state.baseAlloc;
-    const Type *type = alloc->mHal.state.type;
-    if (base == nullptr) {
-        return;
-    }
-
-    //ALOGE("rsdAllocationAdapterOffset  %p  %p", ptrA, ptrB);
-    //ALOGE("rsdAllocationAdapterOffset  lodCount %i", alloc->mHal.drvState.lodCount);
-
-    const int lodBias = alloc->mHal.state.originLOD;
-    uint32_t lodCount = rsMax(alloc->mHal.drvState.lodCount, (uint32_t)1);
-    for (uint32_t lod=0; lod < lodCount; lod++) {
-        alloc->mHal.drvState.lod[lod] = base->mHal.drvState.lod[lod + lodBias];
-        alloc->mHal.drvState.lod[lod].mallocPtr = GetOffsetPtr(alloc,
-                      alloc->mHal.state.originX, alloc->mHal.state.originY, alloc->mHal.state.originZ,
-                      lodBias, (RsAllocationCubemapFace)alloc->mHal.state.originFace);
-    }
-}
-
-bool rsdAllocationAdapterInit(const Context *rsc, Allocation *alloc) {
-    DrvAllocation *drv = (DrvAllocation *)calloc(1, sizeof(DrvAllocation));
-    if (!drv) {
-        return false;
-    }
-    alloc->mHal.drv = drv;
-
-    // We need to build an allocation that looks like a subset of the parent allocation
-    rsdAllocationAdapterOffset(rsc, alloc);
-
-    return true;
-}
-
 void rsdAllocationDestroy(const Context *rsc, Allocation *alloc) {
     DrvAllocation *drv = (DrvAllocation *)alloc->mHal.drv;
 
-    if (alloc->mHal.state.baseAlloc == nullptr) {
 #ifndef RS_COMPATIBILITY_LIB
-        if (drv->bufferID) {
-            // Causes a SW crash....
-            //ALOGV(" mBufferID %i", mBufferID);
-            //glDeleteBuffers(1, &mBufferID);
-            //mBufferID = 0;
-        }
-        if (drv->textureID) {
-            RSD_CALL_GL(glDeleteTextures, 1, &drv->textureID);
-            drv->textureID = 0;
-        }
-        if (drv->renderTargetID) {
-            RSD_CALL_GL(glDeleteRenderbuffers, 1, &drv->renderTargetID);
-            drv->renderTargetID = 0;
-        }
+    if (drv->bufferID) {
+        // Causes a SW crash....
+        //ALOGV(" mBufferID %i", mBufferID);
+        //glDeleteBuffers(1, &mBufferID);
+        //mBufferID = 0;
+    }
+    if (drv->textureID) {
+        RSD_CALL_GL(glDeleteTextures, 1, &drv->textureID);
+        drv->textureID = 0;
+    }
+    if (drv->renderTargetID) {
+        RSD_CALL_GL(glDeleteRenderbuffers, 1, &drv->renderTargetID);
+        drv->renderTargetID = 0;
+    }
 #endif
 
-        if (alloc->mHal.drvState.lod[0].mallocPtr) {
-            // don't free user-allocated ptrs or IO_OUTPUT buffers
-            if (!(drv->useUserProvidedPtr) &&
-                !(alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_IO_INPUT) &&
-                !(alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_IO_OUTPUT)) {
-                    free(alloc->mHal.drvState.lod[0].mallocPtr);
-            }
-            alloc->mHal.drvState.lod[0].mallocPtr = nullptr;
+    if (alloc->mHal.drvState.lod[0].mallocPtr) {
+        // don't free user-allocated ptrs or IO_OUTPUT buffers
+        if (!(drv->useUserProvidedPtr) &&
+            !(alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_IO_INPUT) &&
+            !(alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_IO_OUTPUT)) {
+                free(alloc->mHal.drvState.lod[0].mallocPtr);
         }
-
-#ifndef RS_COMPATIBILITY_LIB
-        if (drv->readBackFBO != nullptr) {
-            delete drv->readBackFBO;
-            drv->readBackFBO = nullptr;
-        }
-
-        if ((alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_IO_OUTPUT) &&
-            (alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_SCRIPT)) {
-
-            DrvAllocation *drv = (DrvAllocation *)alloc->mHal.drv;
-            ANativeWindow *nw = drv->wndSurface;
-            if (nw) {
-                GraphicBufferMapper &mapper = GraphicBufferMapper::get();
-                mapper.unlock(drv->wndBuffer->handle);
-                int32_t r = nw->cancelBuffer(nw, drv->wndBuffer, -1);
-
-                drv->wndSurface = nullptr;
-                native_window_api_disconnect(nw, NATIVE_WINDOW_API_CPU);
-                nw->decStrong(nullptr);
-            }
-        }
-#endif
+        alloc->mHal.drvState.lod[0].mallocPtr = NULL;
     }
 
+#ifndef RS_COMPATIBILITY_LIB
+    if (drv->readBackFBO != NULL) {
+        delete drv->readBackFBO;
+        drv->readBackFBO = NULL;
+    }
+
+    if ((alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_IO_OUTPUT) &&
+        (alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_SCRIPT)) {
+
+        DrvAllocation *drv = (DrvAllocation *)alloc->mHal.drv;
+        ANativeWindow *nw = drv->wndSurface;
+        if (nw) {
+            GraphicBufferMapper &mapper = GraphicBufferMapper::get();
+            mapper.unlock(drv->wndBuffer->handle);
+            int32_t r = nw->queueBuffer(nw, drv->wndBuffer, -1);
+
+            drv->wndSurface = NULL;
+            native_window_api_disconnect(nw, NATIVE_WINDOW_API_CPU);
+            nw->decStrong(NULL);
+        }
+    }
+#endif
+
     free(drv);
-    alloc->mHal.drv = nullptr;
+    alloc->mHal.drv = NULL;
 }
 
 void rsdAllocationResize(const Context *rsc, const Allocation *alloc,
@@ -610,7 +542,7 @@ void rsdAllocationResize(const Context *rsc, const Allocation *alloc,
     }
     void * oldPtr = alloc->mHal.drvState.lod[0].mallocPtr;
     // Calculate the object size
-    size_t s = AllocationBuildPointerTable(rsc, alloc, newType, nullptr);
+    size_t s = AllocationBuildPointerTable(rsc, alloc, newType, NULL);
     uint8_t *ptr = (uint8_t *)realloc(oldPtr, s);
     // Build the relative pointer tables.
     size_t verifySize = AllocationBuildPointerTable(rsc, alloc, newType, ptr);
@@ -639,7 +571,7 @@ static void rsdAllocationSyncFromFBO(const Context *rsc, const Allocation *alloc
     if (!drv->textureID && !drv->renderTargetID) {
         return; // nothing was rendered here yet, so nothing to sync
     }
-    if (drv->readBackFBO == nullptr) {
+    if (drv->readBackFBO == NULL) {
         drv->readBackFBO = new RsdFrameBufferObj();
         drv->readBackFBO->setColorTarget(drv, 0);
         drv->readBackFBO->setDimensions(alloc->getType()->getDimX(),
@@ -724,7 +656,7 @@ static bool IoGetBuffer(const Context *rsc, Allocation *alloc, ANativeWindow *nw
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
     Rect bounds(drv->wndBuffer->width, drv->wndBuffer->height);
 
-    void *dst = nullptr;
+    void *dst = NULL;
     mapper.lock(drv->wndBuffer->handle,
             GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN,
             bounds, &dst);
@@ -742,7 +674,7 @@ void rsdAllocationSetSurface(const Context *rsc, Allocation *alloc, ANativeWindo
     ANativeWindow *old = drv->wndSurface;
 
     if (nw) {
-        nw->incStrong(nullptr);
+        nw->incStrong(NULL);
     }
 
     if (alloc->mHal.state.usageFlags & RS_ALLOCATION_USAGE_GRAPHICS_RENDER_TARGET) {
@@ -757,13 +689,13 @@ void rsdAllocationSetSurface(const Context *rsc, Allocation *alloc, ANativeWindo
         GraphicBufferMapper &mapper = GraphicBufferMapper::get();
         mapper.unlock(drv->wndBuffer->handle);
         old->cancelBuffer(old, drv->wndBuffer, -1);
-        drv->wndSurface = nullptr;
+        drv->wndSurface = NULL;
 
         native_window_api_disconnect(old, NATIVE_WINDOW_API_CPU);
-        old->decStrong(nullptr);
+        old->decStrong(NULL);
     }
 
-    if (nw != nullptr) {
+    if (nw != NULL) {
         int32_t r;
         uint32_t flags = 0;
 
@@ -795,13 +727,9 @@ void rsdAllocationSetSurface(const Context *rsc, Allocation *alloc, ANativeWindo
 
         int format = 0;
         const Element *e = alloc->mHal.state.type->getElement();
-        if ((e->getType() != RS_TYPE_UNSIGNED_8) ||
-            (e->getVectorSize() != 4)) {
-            // We do not check for RGBA, RGBx, to allow for interop with U8_4
-
-            rsc->setError(RS_ERROR_DRIVER, "Surface passed to setSurface is not U8_4, RGBA.");
-            goto error;
-        }
+        rsAssert(e->getType() == RS_TYPE_UNSIGNED_8);
+        rsAssert(e->getVectorSize() == 4);
+        rsAssert(e->getKind() == RS_KIND_PIXEL_RGBA);
         format = PIXEL_FORMAT_RGBA_8888;
 
         r = native_window_set_buffers_format(nw, format);
@@ -819,7 +747,7 @@ void rsdAllocationSetSurface(const Context *rsc, Allocation *alloc, ANativeWindo
  error:
 
     if (nw) {
-        nw->decStrong(nullptr);
+        nw->decStrong(NULL);
     }
 
 
@@ -861,9 +789,6 @@ void rsdAllocationIoReceive(const Context *rsc, Allocation *alloc) {
         drv->surfaceTexture->updateTexImage();
     }
 #endif
-    if (alloc->mHal.state.yuv) {
-        DeriveYUVLayout(alloc->mHal.state.yuv, &alloc->mHal.drvState);
-    }
 }
 
 
@@ -962,7 +887,7 @@ void rsdAllocationData3D(const Context *rsc, const Allocation *alloc,
 
     if (alloc->mHal.drvState.lod[0].mallocPtr) {
         const uint8_t *src = static_cast<const uint8_t *>(data);
-        for (uint32_t z = zoff; z < (d + zoff); z++) {
+        for (uint32_t z = zoff; z < d; z++) {
             uint8_t *dst = GetOffsetPtr(alloc, xoff, yoff, z, lod,
                                         RS_ALLOCATION_CUBEMAP_FACE_POSITIVE_X);
             if (dst == src) {
@@ -1039,7 +964,7 @@ void rsdAllocationRead3D(const Context *rsc, const Allocation *alloc,
 
     if (alloc->mHal.drvState.lod[0].mallocPtr) {
         uint8_t *dst = static_cast<uint8_t *>(data);
-        for (uint32_t z = zoff; z < (d + zoff); z++) {
+        for (uint32_t z = zoff; z < d; z++) {
             const uint8_t *src = GetOffsetPtr(alloc, xoff, yoff, z, lod,
                                               RS_ALLOCATION_CUBEMAP_FACE_POSITIVE_X);
             if (dst == src) {
@@ -1149,12 +1074,13 @@ void rsdAllocationData3D_alloc(const android::renderscript::Context *rsc,
                                      srcXoff, srcYoff, srcZoff, srcLod);
 }
 
-void rsdAllocationElementData(const Context *rsc, const Allocation *alloc,
-                              uint32_t x, uint32_t y, uint32_t z,
-                              const void *data, uint32_t cIdx, size_t sizeBytes) {
+void rsdAllocationElementData1D(const Context *rsc, const Allocation *alloc,
+                                uint32_t x,
+                                const void *data, uint32_t cIdx, size_t sizeBytes) {
     DrvAllocation *drv = (DrvAllocation *)alloc->mHal.drv;
 
-    uint8_t * ptr = GetOffsetPtr(alloc, x, y, z, 0, RS_ALLOCATION_CUBEMAP_FACE_POSITIVE_X);
+    size_t eSize = alloc->mHal.state.elementSizeBytes;
+    uint8_t * ptr = GetOffsetPtr(alloc, x, 0, 0, 0, RS_ALLOCATION_CUBEMAP_FACE_POSITIVE_X);
 
     const Element * e = alloc->mHal.state.type->getElement()->getField(cIdx);
     ptr += alloc->mHal.state.type->getElement()->getFieldOffsetBytes(cIdx);
@@ -1168,17 +1094,24 @@ void rsdAllocationElementData(const Context *rsc, const Allocation *alloc,
     drv->uploadDeferred = true;
 }
 
-void rsdAllocationElementRead(const Context *rsc, const Allocation *alloc,
-                              uint32_t x, uint32_t y, uint32_t z,
-                              void *data, uint32_t cIdx, size_t sizeBytes) {
+void rsdAllocationElementData2D(const Context *rsc, const Allocation *alloc,
+                                uint32_t x, uint32_t y,
+                                const void *data, uint32_t cIdx, size_t sizeBytes) {
     DrvAllocation *drv = (DrvAllocation *)alloc->mHal.drv;
 
-    uint8_t * ptr = GetOffsetPtr(alloc, x, y, z, 0, RS_ALLOCATION_CUBEMAP_FACE_POSITIVE_X);
+    size_t eSize = alloc->mHal.state.elementSizeBytes;
+    uint8_t * ptr = GetOffsetPtr(alloc, x, y, 0, 0, RS_ALLOCATION_CUBEMAP_FACE_POSITIVE_X);
 
     const Element * e = alloc->mHal.state.type->getElement()->getField(cIdx);
     ptr += alloc->mHal.state.type->getElement()->getFieldOffsetBytes(cIdx);
 
-    memcpy(data, ptr, sizeBytes);
+    if (alloc->mHal.state.hasReferences) {
+        e->incRefs(data);
+        e->decRefs(ptr);
+    }
+
+    memcpy(ptr, data, sizeBytes);
+    drv->uploadDeferred = true;
 }
 
 static void mip565(const Allocation *alloc, int lod, RsAllocationCubemapFace face) {
@@ -1269,14 +1202,16 @@ void rsdAllocationUpdateCachedObject(const Context *rsc,
 {
     obj->p = alloc;
 #ifdef __LP64__
-    if (alloc != nullptr) {
+    if (alloc != NULL) {
         obj->r = alloc->mHal.drvState.lod[0].mallocPtr;
         obj->v1 = alloc->mHal.drv;
         obj->v2 = (void *)alloc->mHal.drvState.lod[0].stride;
     } else {
-        obj->r = nullptr;
-        obj->v1 = nullptr;
-        obj->v2 = nullptr;
+        obj->r = NULL;
+        obj->v1 = NULL;
+        obj->v2 = NULL;
     }
 #endif
 }
+
+

@@ -42,7 +42,7 @@ int test_compute()
         sc->set_elem(e);
         sc->set_type(t);
         sc->set_script(sc);
-        sc->set_script(nullptr);
+        sc->set_script(NULL);
         sp<const Sampler> samp = Sampler::CLAMP_NEAREST(rs);
         sc->set_sampler(samp);
 

@@ -38,13 +38,9 @@ RsdShaderCache::~RsdShaderCache() {
     cleanupAll();
 }
 
-void RsdShaderCache::updateUniformArrayData(const Context *rsc,
-                                            RsdShader *prog,
-                                            uint32_t linkedID,
-                                            UniformData *data,
-                                            const char* logTag,
-                                            UniformQueryData **uniformList,
-                                            uint32_t uniListSize) {
+void RsdShaderCache::updateUniformArrayData(const Context *rsc, RsdShader *prog, uint32_t linkedID,
+                                         UniformData *data, const char* logTag,
+                                         UniformQueryData **uniformList, uint32_t uniListSize) {
 
     for (uint32_t ct=0; ct < prog->getUniformCount(); ct++) {
         if (data[ct].slot >= 0 && data[ct].arraySize > 1) {
@@ -59,17 +55,14 @@ void RsdShaderCache::updateUniformArrayData(const Context *rsc,
 
         if (rsc->props.mLogShaders) {
              ALOGV("%s U, %s = %d, arraySize = %d\n", logTag,
-                   prog->getUniformName(ct).c_str(), data[ct].slot,
-                   data[ct].arraySize);
+                  prog->getUniformName(ct).string(), data[ct].slot, data[ct].arraySize);
         }
     }
 }
 
-void RsdShaderCache::populateUniformData(RsdShader *prog, uint32_t linkedID,
-                                         UniformData *data) {
+void RsdShaderCache::populateUniformData(RsdShader *prog, uint32_t linkedID, UniformData *data) {
     for (uint32_t ct=0; ct < prog->getUniformCount(); ct++) {
-       data[ct].slot = glGetUniformLocation(linkedID,
-                                            prog->getUniformName(ct).c_str());
+       data[ct].slot = glGetUniformLocation(linkedID, prog->getUniformName(ct));
        data[ct].arraySize = prog->getUniformArraySize(ct);
     }
 }
@@ -166,7 +159,7 @@ bool RsdShaderCache::link(const Context *rsc) {
             if (bufLength) {
                 char* buf = (char*) malloc(bufLength);
                 if (buf) {
-                    glGetProgramInfoLog(pgm, bufLength, nullptr, buf);
+                    glGetProgramInfoLog(pgm, bufLength, NULL, buf);
                     rsc->setError(RS_ERROR_FATAL_PROGRAM_LINK, buf);
                     free(buf);
                 }
@@ -176,12 +169,10 @@ bool RsdShaderCache::link(const Context *rsc) {
         }
 
         for (uint32_t ct=0; ct < e->vtxAttrCount; ct++) {
-            e->vtxAttrs[ct].slot =
-                glGetAttribLocation(pgm, vtx->getAttribName(ct).c_str());
-            e->vtxAttrs[ct].name = vtx->getAttribName(ct).c_str();
+            e->vtxAttrs[ct].slot = glGetAttribLocation(pgm, vtx->getAttribName(ct));
+            e->vtxAttrs[ct].name = vtx->getAttribName(ct).string();
             if (rsc->props.mLogShaders) {
-                ALOGV("vtx A %i, %s = %d\n", ct,
-                      vtx->getAttribName(ct).c_str(), e->vtxAttrs[ct].slot);
+                ALOGV("vtx A %i, %s = %d\n", ct, vtx->getAttribName(ct).string(), e->vtxAttrs[ct].slot);
             }
         }
 
@@ -189,7 +180,7 @@ bool RsdShaderCache::link(const Context *rsc) {
         populateUniformData(frag, pgm, e->fragUniforms);
 
         // Only populate this list if we have arrays in our uniforms
-        UniformQueryData **uniformList = nullptr;
+        UniformQueryData **uniformList = NULL;
         GLint numUniforms = 0;
         bool hasArrays = hasArrayUniforms(vtx, frag);
         if (hasArrays) {
@@ -221,12 +212,12 @@ bool RsdShaderCache::link(const Context *rsc) {
                                uniformList, (uint32_t)numUniforms);
 
         // Clean up the uniform data from GL
-        if (uniformList != nullptr) {
+        if (uniformList != NULL) {
             for (uint32_t ct = 0; ct < (uint32_t)numUniforms; ct++) {
                 delete uniformList[ct];
             }
             delete[] uniformList;
-            uniformList = nullptr;
+            uniformList = NULL;
         }
     }
 

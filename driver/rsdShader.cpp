@@ -33,7 +33,7 @@ RsdShader::RsdShader(const Program *p, uint32_t type,
                      const char * shaderText, size_t shaderLength,
                      const char** textureNames, size_t textureNamesCount,
                      const size_t *textureNamesLength) {
-    mUserShader.replace(0, shaderLength, shaderText);
+    mUserShader.setTo(shaderText, shaderLength);
     mRSProgram = p;
     mType = type;
     initMemberVars();
@@ -64,16 +64,16 @@ void RsdShader::initMemberVars() {
     mAttribCount = 0;
     mUniformCount = 0;
 
-    mAttribNames = nullptr;
-    mUniformNames = nullptr;
-    mUniformArraySizes = nullptr;
-    mCurrentState = nullptr;
+    mAttribNames = NULL;
+    mUniformNames = NULL;
+    mUniformArraySizes = NULL;
+    mCurrentState = NULL;
 
     mIsValid = false;
 }
 
 RsdShader::StateBasedKey *RsdShader::getExistingState() {
-    RsdShader::StateBasedKey *returnKey = nullptr;
+    RsdShader::StateBasedKey *returnKey = NULL;
 
     for (uint32_t i = 0; i < mStateBasedShaders.size(); i ++) {
         returnKey = mStateBasedShaders.itemAt(i);
@@ -91,7 +91,7 @@ RsdShader::StateBasedKey *RsdShader::getExistingState() {
                 texType = GL_TEXTURE_CUBE_MAP;
             }
             if (texType != returnKey->mTextureTargets[ct]) {
-                returnKey = nullptr;
+                returnKey = NULL;
                 break;
             }
         }
@@ -101,7 +101,7 @@ RsdShader::StateBasedKey *RsdShader::getExistingState() {
 
 uint32_t RsdShader::getStateBasedShaderID(const Context *rsc) {
     StateBasedKey *state = getExistingState();
-    if (state != nullptr) {
+    if (state != NULL) {
         mCurrentState = state;
         return mCurrentState->mShaderID;
     }
@@ -120,7 +120,7 @@ void RsdShader::init(const char** textureNames, size_t textureNamesCount,
     uint32_t uniformCount = 0;
     for (uint32_t ct=0; ct < mRSProgram->mHal.state.inputElementsCount; ct++) {
         initAddUserElement(mRSProgram->mHal.state.inputElements[ct], mAttribNames,
-                           nullptr, &attribCount, RS_SHADER_ATTR);
+                           NULL, &attribCount, RS_SHADER_ATTR);
     }
     for (uint32_t ct=0; ct < mRSProgram->mHal.state.constantsCount; ct++) {
         initAddUserElement(mRSProgram->mHal.state.constantTypes[ct]->getElement(),
@@ -129,15 +129,15 @@ void RsdShader::init(const char** textureNames, size_t textureNamesCount,
 
     mTextureUniformIndexStart = uniformCount;
     for (uint32_t ct=0; ct < mRSProgram->mHal.state.texturesCount; ct++) {
-        mUniformNames[uniformCount] = "UNI_";
+        mUniformNames[uniformCount].setTo("UNI_");
         mUniformNames[uniformCount].append(textureNames[ct], textureNamesLength[ct]);
         mUniformArraySizes[uniformCount] = 1;
         uniformCount++;
     }
 }
 
-std::string RsdShader::getGLSLInputString() const {
-    std::string s;
+String8 RsdShader::getGLSLInputString() const {
+    String8 s;
     for (uint32_t ct=0; ct < mRSProgram->mHal.state.inputElementsCount; ct++) {
         const Element *e = mRSProgram->mHal.state.inputElements[ct];
         for (uint32_t field=0; field < e->mHal.state.fieldsCount; field++) {
@@ -237,12 +237,12 @@ bool RsdShader::loadShader(const Context *rsc) {
 
     if (rsc->props.mLogShaders) {
         ALOGV("Loading shader type %x, ID %i", mType, mCurrentState->mShaderID);
-        ALOGV("%s", mShader.c_str());
+        ALOGV("%s", mShader.string());
     }
 
     if (mCurrentState->mShaderID) {
-        const char * ss = mShader.c_str();
-        RSD_CALL_GL(glShaderSource, mCurrentState->mShaderID, 1, &ss, nullptr);
+        const char * ss = mShader.string();
+        RSD_CALL_GL(glShaderSource, mCurrentState->mShaderID, 1, &ss, NULL);
         RSD_CALL_GL(glCompileShader, mCurrentState->mShaderID);
 
         GLint compiled = 0;
@@ -253,7 +253,7 @@ bool RsdShader::loadShader(const Context *rsc) {
             if (infoLen) {
                 char* buf = (char*) malloc(infoLen);
                 if (buf) {
-                    RSD_CALL_GL(glGetShaderInfoLog, mCurrentState->mShaderID, infoLen, nullptr, buf);
+                    RSD_CALL_GL(glGetShaderInfoLog, mCurrentState->mShaderID, infoLen, NULL, buf);
                     rsc->setError(RS_ERROR_FATAL_PROGRAM_LINK, buf);
                     free(buf);
                 }
@@ -299,9 +299,7 @@ void RsdShader::appendUserConstants() {
 
             mShader.append(fn);
             if (e->mHal.state.fieldArraySizes[field] > 1) {
-                mShader += "[";
-                mShader += std::to_string(e->mHal.state.fieldArraySizes[field]);
-                mShader += "]";
+                mShader.appendFormat("[%d]", e->mHal.state.fieldArraySizes[field]);
             }
             mShader.append(";\n");
         }
@@ -587,28 +585,27 @@ void RsdShader::initAttribAndUniformArray() {
     mUniformCount += mRSProgram->mHal.state.texturesCount;
 
     if (mAttribCount) {
-        mAttribNames = new std::string[mAttribCount];
+        mAttribNames = new String8[mAttribCount];
     }
     if (mUniformCount) {
-        mUniformNames = new std::string[mUniformCount];
+        mUniformNames = new String8[mUniformCount];
         mUniformArraySizes = new uint32_t[mUniformCount];
     }
 
     mTextureCount = mRSProgram->mHal.state.texturesCount;
 }
 
-void RsdShader::initAddUserElement(const Element *e, std::string *names,
-                                   uint32_t *arrayLengths, uint32_t *count,
-                                   const char *prefix) {
+void RsdShader::initAddUserElement(const Element *e, String8 *names, uint32_t *arrayLengths,
+                                   uint32_t *count, const char *prefix) {
     rsAssert(e->mHal.state.fieldsCount);
     for (uint32_t ct=0; ct < e->mHal.state.fieldsCount; ct++) {
         const Element *ce = e->mHal.state.fields[ct];
         if (ce->mHal.state.fieldsCount) {
             initAddUserElement(ce, names, arrayLengths, count, prefix);
         } else {
-            std::string tmp(prefix);
+            String8 tmp(prefix);
             tmp.append(e->mHal.state.fieldNames[ct]);
-            names[*count] = tmp;
+            names[*count].setTo(tmp.string());
             if (arrayLengths) {
                 arrayLengths[*count] = e->mHal.state.fieldArraySizes[ct];
             }

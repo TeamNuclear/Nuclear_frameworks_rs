@@ -20,80 +20,115 @@
 #include "rsd_cpu.h"
 #include "rsSignal.h"
 #include "rsContext.h"
-#include "rsCppUtils.h"
 #include "rsElement.h"
 #include "rsScriptC.h"
-#include "rsCpuCoreRuntime.h"
+
+#include <string>
+
+namespace bcc {
+    class BCCContext;
+    class RSCompilerDriver;
+    class RSExecutable;
+}
 
 namespace android {
 namespace renderscript {
 
-// Whether the CPU we're running on supports SIMD instructions
+typedef struct {
+  uint32_t eStride;
+  uint32_t yStride;
+} StridePair;
+
+typedef struct {
+    const void *in;
+    void *out;
+    const void *usr;
+    uint32_t usrLen;
+    uint32_t x;
+    uint32_t y;
+    uint32_t z;
+    uint32_t lod;
+    RsAllocationCubemapFace face;
+    uint32_t ar[16];
+
+    const void **ins;
+    uint32_t *eStrideIns;
+
+    uint32_t lid;
+
+    uint32_t dimX;
+    uint32_t dimY;
+    uint32_t dimZ;
+    uint32_t dimArray;
+
+    const uint8_t *ptrIn;
+    uint8_t *ptrOut;
+    uint32_t eStrideIn;
+    uint32_t eStrideOut;
+    uint32_t yStrideIn;
+    uint32_t yStrideOut;
+    uint32_t slot;
+
+    const uint8_t** ptrIns;
+    StridePair* inStrides;
+} RsForEachStubParamStruct;
+
 extern bool gArchUseSIMD;
 
-// Function types found in RenderScript code
-typedef void (*ReduceFunc_t)(const uint8_t *inBuf, uint8_t *outBuf, uint32_t len);
-typedef void (*ForEachFunc_t)(const RsExpandKernelDriverInfo *info, uint32_t x1, uint32_t x2, uint32_t outStride);
-typedef void (*InvokeFunc_t)(void *params);
-typedef void (*InitOrDtorFunc_t)(void);
-typedef int  (*RootFunc_t)(void);
-
-// Internal driver callback used to execute a kernel
+typedef void (* InvokeFunc_t)(void);
+typedef void (* ForEachFunc_t)(void);
 typedef void (*WorkerCallback_t)(void *usr, uint32_t idx);
 
 class RsdCpuScriptImpl;
 class RsdCpuReferenceImpl;
 
-struct ScriptTLSStruct {
+typedef struct ScriptTLSStructRec {
     android::renderscript::Context * mContext;
     const android::renderscript::Script * mScript;
     RsdCpuScriptImpl *mImpl;
-};
+} ScriptTLSStruct;
 
-// MTLaunchStruct passes information about a multithreaded kernel launch.
-struct MTLaunchStructCommon {
-    RsdCpuReferenceImpl *rs;
+typedef struct {
+    RsForEachStubParamStruct fep;
+
+    RsdCpuReferenceImpl *rsc;
     RsdCpuScriptImpl *script;
+
+    ForEachFunc_t kernel;
+    uint32_t sig;
+    const Allocation * ain;
+    Allocation * aout;
 
     uint32_t mSliceSize;
     volatile int mSliceNum;
     bool isThreadable;
 
-    // Boundary information about the launch
-    RsLaunchDimensions start;
-    RsLaunchDimensions end;
-    // Points to MTLaunchStructForEach::fep::dim or
-    // MTLaunchStructReduce::inputDim.
-    RsLaunchDimensions *dimPtr;
-};
+    uint32_t xStart;
+    uint32_t xEnd;
+    uint32_t yStart;
+    uint32_t yEnd;
+    uint32_t zStart;
+    uint32_t zEnd;
+    uint32_t arrayStart;
+    uint32_t arrayEnd;
 
-struct MTLaunchStructForEach : public MTLaunchStructCommon {
-    // Driver info structure
-    RsExpandKernelDriverInfo fep;
+    // Multi-input data.
+    const Allocation ** ains;
+} MTLaunchStruct;
 
-    ForEachFunc_t kernel;
-    uint32_t sig;
-    const Allocation *ains[RS_KERNEL_INPUT_LIMIT];
-    Allocation *aout[RS_KERNEL_INPUT_LIMIT];
-};
 
-struct MTLaunchStructReduce : public MTLaunchStructCommon {
-    ReduceFunc_t kernel;
-    const uint8_t *inBuf;
-    uint8_t *outBuf;
-    RsLaunchDimensions inputDim;
-};
+
 
 class RsdCpuReferenceImpl : public RsdCpuReference {
 public:
-    ~RsdCpuReferenceImpl() override;
+    virtual ~RsdCpuReferenceImpl();
     RsdCpuReferenceImpl(Context *);
 
     void lockMutex();
     void unlockMutex();
 
     bool init(uint32_t version_major, uint32_t version_minor, sym_lookup_t, script_lookup_t);
-    void setPriority(int32_t priority) override;
+    virtual void setPriority(int32_t priority);
     virtual void launchThreads(WorkerCallback_t cbk, void *data);
     static void * helperThreadProc(void *vrsc);
     RsdCpuScriptImpl * setTLS(RsdCpuScriptImpl *sc);
@@ -103,23 +138,33 @@ public:
         return mWorkers.mCount + 1;
     }
 
-    // Launch foreach kernel
-    void launchForEach(const Allocation **ains, uint32_t inLen, Allocation *aout,
-                       const RsScriptCall *sc, MTLaunchStructForEach *mtls);
+    void launchThreads(const Allocation * ain, Allocation * aout,
+                       const RsScriptCall *sc, MTLaunchStruct *mtls);
 
-    // Launch a reduce kernel
-    void launchReduce(const Allocation *ain, Allocation *aout,
-                      MTLaunchStructReduce *mtls);
+    void launchThreads(const Allocation** ains, uint32_t inLen, Allocation* aout,
+                       const RsScriptCall* sc, MTLaunchStruct* mtls);
 
-    CpuScript * createScript(const ScriptC *s, char const *resName, char const *cacheDir,
-                             uint8_t const *bitcode, size_t bitcodeSize, uint32_t flags) override;
-    CpuScript * createIntrinsic(const Script *s, RsScriptIntrinsicID iid, Element *e) override;
-    void* createScriptGroup(const ScriptGroupBase *sg) override;
+    virtual CpuScript * createScript(const ScriptC *s,
+                                     char const *resName, char const *cacheDir,
+                                     uint8_t const *bitcode, size_t bitcodeSize,
+                                     uint32_t flags);
+    virtual CpuScript * createIntrinsic(const Script *s,
+                                        RsScriptIntrinsicID iid, Element *e);
+    virtual CpuScriptGroup * createScriptGroup(const ScriptGroup *sg);
 
     const RsdCpuReference::CpuSymbol *symLookup(const char *);
 
-    RsdCpuReference::CpuScript *lookupScript(const Script *s) {
+    RsdCpuReference::CpuScript * lookupScript(const Script *s) {
         return mScriptLookupFn(mRSC, s);
+    }
+
+#ifndef RS_COMPATIBILITY_LIB
+    void setLinkRuntimeCallback(
+            bcc::RSLinkRuntimeCallback pLinkRuntimeCallback) {
+        mLinkRuntimeCallback = pLinkRuntimeCallback;
+    }
+    bcc::RSLinkRuntimeCallback getLinkRuntimeCallback() {
+        return mLinkRuntimeCallback;
     }
 
     void setSelectRTCallback(RSSelectRTCallback pSelectRTCallback) {
@@ -129,35 +174,22 @@ public:
         return mSelectRTCallback;
     }
 
+    virtual void setSetupCompilerCallback(
+            RSSetupCompilerCallback pSetupCompilerCallback) {
+        mSetupCompilerCallback = pSetupCompilerCallback;
+    }
+    virtual RSSetupCompilerCallback getSetupCompilerCallback() const {
+        return mSetupCompilerCallback;
+    }
+
     virtual void setBccPluginName(const char *name) {
-        mBccPluginName.setTo(name);
+        mBccPluginName.assign(name);
     }
     virtual const char *getBccPluginName() const {
-        return mBccPluginName.string();
+        return mBccPluginName.c_str();
     }
-    bool getInForEach() override { return mInForEach; }
-
-    // Set to true if we should embed global variable information in the code.
-    void setEmbedGlobalInfo(bool v) override {
-        mEmbedGlobalInfo = v;
-    }
-
-    // Returns true if we should embed global variable information in the code.
-    bool getEmbedGlobalInfo() const override {
-        return mEmbedGlobalInfo;
-    }
-
-    // Set to true if we should skip constant (immutable) global variables when
-    // potentially embedding information about globals.
-    void setEmbedGlobalInfoSkipConstant(bool v) override {
-        mEmbedGlobalInfoSkipConstant = v;
-    }
-
-    // Returns true if we should skip constant (immutable) global variables when
-    // potentially embedding information about globals.
-    bool getEmbedGlobalInfoSkipConstant() const override {
-        return mEmbedGlobalInfoSkipConstant;
-    }
+#endif
+    virtual bool getInForEach() { return mInForEach; }
 
 protected:
     Context *mRSC;
@@ -184,18 +216,12 @@ protected:
 
     ScriptTLSStruct mTlsStruct;
 
+#ifndef RS_COMPATIBILITY_LIB
+    bcc::RSLinkRuntimeCallback mLinkRuntimeCallback;
     RSSelectRTCallback mSelectRTCallback;
-    String8 mBccPluginName;
-
-    // Specifies whether we should embed global variable information in the
-    // code via special RS variables that can be examined later by the driver.
-    // Defaults to true.
-    bool mEmbedGlobalInfo;
-
-    // Specifies whether we should skip constant (immutable) global variables
-    // when potentially embedding information about globals.
-    // Defaults to true.
-    bool mEmbedGlobalInfoSkipConstant;
+    RSSetupCompilerCallback mSetupCompilerCallback;
+    std::string mBccPluginName;
+#endif
 };
 
 

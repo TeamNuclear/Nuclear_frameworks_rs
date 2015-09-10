@@ -47,13 +47,13 @@ void rsdSamplerUpdateCachedObject(const Context *rsc,
 {
     obj->p = alloc;
 #ifdef __LP64__
-    obj->r = nullptr;
-    if (alloc != nullptr) {
+    obj->r = NULL;
+    if (alloc != NULL) {
         obj->v1 = alloc->mHal.drv;
     } else {
-        obj->v1 = nullptr;
+        obj->v1 = NULL;
     }
-    obj->v2 = nullptr;
+    obj->v2 = NULL;
 #endif
 }
 

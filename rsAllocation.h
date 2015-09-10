@@ -48,8 +48,6 @@ class Allocation : public ObjectBase {
 
 public:
     const static int MAX_LOD = 16;
-    // The mininum alignment requirement for RenderScript. Must be power of 2 and larger than 0.
-    const static size_t kMinimumRSAlignment = 16;
 
     struct Hal {
         void * drv;
@@ -71,15 +69,6 @@ public:
             int32_t surfaceTextureID;
             ANativeWindowBuffer *nativeBuffer;
             int64_t timestamp;
-
-            // Allocation adapter state
-            const Allocation *baseAlloc;
-            uint32_t originX;
-            uint32_t originY;
-            uint32_t originZ;
-            uint32_t originLOD;
-            uint32_t originFace;
-            uint32_t originArray[Type::mMaxArrays];
         };
         State state;
 
@@ -101,7 +90,6 @@ public:
             } yuv;
 
             int grallocFlags;
-            uint32_t dimArray[Type::mMaxArrays];
         };
         mutable DrvState drvState;
 
@@ -113,12 +101,6 @@ public:
     static Allocation * createAllocation(Context *rsc, const Type *, uint32_t usages,
                                          RsAllocationMipmapControl mc = RS_ALLOCATION_MIPMAP_NONE,
                                          void *ptr = 0);
-    static Allocation * createAllocationStrided(Context *rsc, const Type *, uint32_t usages,
-                                                RsAllocationMipmapControl mc = RS_ALLOCATION_MIPMAP_NONE,
-                                                void *ptr = 0, size_t byteAligned = 16);
-    static Allocation * createAdapter(Context *rsc, const Allocation *alloc, const Type *type);
-
-
     virtual ~Allocation();
     void updateCache();
 
@@ -143,11 +125,10 @@ public:
     void read(Context *rsc, uint32_t xoff, uint32_t yoff, uint32_t zoff, uint32_t lod,
               uint32_t w, uint32_t h, uint32_t d, void *data, size_t sizeBytes, size_t stride);
 
-    void elementData(Context *rsc, uint32_t x, uint32_t y, uint32_t z,
+    void elementData(Context *rsc, uint32_t x,
                      const void *data, uint32_t elementOff, size_t sizeBytes);
-
-    void elementRead(Context *rsc, uint32_t x, uint32_t y, uint32_t z,
-                     void *data, uint32_t elementOff, size_t sizeBytes);
+    void elementData(Context *rsc, uint32_t x, uint32_t y,
+                     const void *data, uint32_t elementOff, size_t sizeBytes);
 
     void addProgramToDirty(const Program *);
     void removeProgramToDirty(const Program *);
@@ -185,25 +166,8 @@ public:
     void ioSend(const Context *rsc);
     void ioReceive(const Context *rsc);
 
-    void adapterOffset(Context *rsc, const uint32_t *offsets, size_t len);
-
     void * getPointer(const Context *rsc, uint32_t lod, RsAllocationCubemapFace face,
                       uint32_t z, uint32_t array, size_t *stride);
-
-    void * getPointerUnchecked(uint32_t x, uint32_t y,
-                               uint32_t z = 0, uint32_t lod = 0,
-                               RsAllocationCubemapFace face = RS_ALLOCATION_CUBEMAP_FACE_POSITIVE_X,
-                               uint32_t a1 = 0, uint32_t a2 = 0, uint32_t a3 = 0, uint32_t a4 = 0) const {
-
-        uint8_t * p = (uint8_t *) mHal.drvState.lod[lod].mallocPtr;
-        p += x * getType()->getElementSizeBytes();
-        p += y * mHal.drvState.lod[lod].stride;
-        p += z * mHal.drvState.lod[lod].stride * mHal.drvState.lod[lod].dimY;
-
-        // Todo: arrays
-
-        return p;
-    }
 
     bool hasSameDims(const Allocation *Other) const;
 
@@ -232,7 +196,6 @@ protected:
 private:
     void freeChildrenUnlocked();
     Allocation(Context *rsc, const Type *, uint32_t usages, RsAllocationMipmapControl mc, void *ptr);
-    Allocation(Context *rsc, const Allocation *, const Type *);
 
     uint32_t getPackedSize() const;
     static void writePackedData(Context *rsc, const Type *type, uint8_t *dst,

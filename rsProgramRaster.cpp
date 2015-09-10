@@ -57,7 +57,7 @@ void ProgramRaster::serialize(Context *rsc, OStream *stream) const {
 }
 
 ProgramRaster *ProgramRaster::createFromStream(Context *rsc, IStream *stream) {
-    return nullptr;
+    return NULL;
 }
 
 ProgramRasterState::ProgramRasterState() {

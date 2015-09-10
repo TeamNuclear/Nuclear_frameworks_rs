@@ -19,15 +19,35 @@
 
 #include "rsAllocation.h"
 
+#ifndef RS_COMPATIBILITY_LIB
+namespace llvm {
+
+class Module;
+
+}  // end namespace llvm
+
+namespace bcc {
+
+class RSCompilerDriver;
+class RSScript;
+typedef llvm::Module* (*RSLinkRuntimeCallback)
+        (bcc::RSScript *, llvm::Module *, llvm::Module *);
+
+}  // end namespace bcc;
+
 typedef const char* (*RSSelectRTCallback) (const char*, size_t);
+
+typedef void (*RSSetupCompilerCallback) (bcc::RSCompilerDriver *);
+#endif
 
 namespace android {
 namespace renderscript {
 
 class ScriptC;
 class Script;
-class ScriptGroupBase;
+class ScriptGroup;
 class ScriptKernelID;
+
 
 class RsdCpuReference {
 public:
@@ -49,20 +69,21 @@ public:
         virtual void populateScript(Script *) = 0;
         virtual void invokeFunction(uint32_t slot, const void *params, size_t paramLength) = 0;
         virtual int invokeRoot() = 0;
-
         virtual void invokeForEach(uint32_t slot,
-                                   const Allocation ** ains,
-                                   uint32_t inLen,
-                                   Allocation * aout,
-                                   const void * usr,
-                                   uint32_t usrLen,
-                                   const RsScriptCall *sc) = 0;
-
-        virtual void invokeReduce(uint32_t slot,
-                                  const Allocation *ain,
-                                  Allocation *aout,
-                                  const RsScriptCall *sc) = 0;
-
+                           const Allocation * ain,
+                           Allocation * aout,
+                           const void * usr,
+                           uint32_t usrLen,
+                           const RsScriptCall *sc) = 0;
+                           
+        virtual void invokeForEachMulti(uint32_t slot,
+                                         const Allocation** ains,
+                                         uint32_t inLen,
+                                         Allocation * aout,
+                                         const void * usr,
+                                         uint32_t usrLen,
+                                         const RsScriptCall *sc) = 0;
+        
         virtual void invokeInit() = 0;
         virtual void invokeFreeChildren() = 0;
 
@@ -74,39 +95,20 @@ public:
         virtual void setGlobalObj(uint32_t slot, ObjectBase *obj) = 0;
 
         virtual Allocation * getAllocationForPointer(const void *ptr) const = 0;
-
-        // Returns number of global variables in this Script (may be 0 if
-        // compiler is not configured to emit this information).
-        virtual int getGlobalEntries() const = 0;
-        // Returns the name of the global variable at index i.
-        virtual const char * getGlobalName(int i) const = 0;
-        // Returns the CPU address of the global variable at index i.
-        virtual const void * getGlobalAddress(int i) const = 0;
-        // Returns the size (in bytes) of the global variable at index i.
-        virtual size_t getGlobalSize(int i) const = 0;
-        // Returns the properties of the global variable at index i.
-        virtual uint32_t getGlobalProperties(int i) const = 0;
-
         virtual ~CpuScript() {}
+
+#ifndef RS_COMPATIBILITY_LIB
+        virtual  void * getRSExecutable()  = 0;
+#endif
     };
     typedef CpuScript * (* script_lookup_t)(Context *, const Script *s);
 
-    class CpuScriptGroupBase {
-     public:
-      virtual void execute() = 0;
-      virtual ~CpuScriptGroupBase() {}
-    };
-
-    class CpuScriptGroup : public CpuScriptGroupBase {
+    class CpuScriptGroup {
     public:
         virtual void setInput(const ScriptKernelID *kid, Allocation *) = 0;
         virtual void setOutput(const ScriptKernelID *kid, Allocation *) = 0;
-        ~CpuScriptGroup() override {};
-    };
-
-    class CpuScriptGroup2 : public CpuScriptGroupBase {
-     public:
-      ~CpuScriptGroup2() override {}
+        virtual void execute() = 0;
+        virtual ~CpuScriptGroup() {};
     };
 
     static Context * getTlsContext();
@@ -115,8 +117,11 @@ public:
 
     static RsdCpuReference * create(Context *c, uint32_t version_major,
                                     uint32_t version_minor, sym_lookup_t lfn, script_lookup_t slfn
-                                    , RSSelectRTCallback pSelectRTCallback = nullptr,
-                                    const char *pBccPluginName = nullptr
+#ifndef RS_COMPATIBILITY_LIB
+                                    , bcc::RSLinkRuntimeCallback pLinkRuntimeCallback = NULL,
+                                    RSSelectRTCallback pSelectRTCallback = NULL,
+                                    const char *pBccPluginName = NULL
+#endif
                                     );
     virtual ~RsdCpuReference();
     virtual void setPriority(int32_t priority) = 0;
@@ -125,22 +130,14 @@ public:
                                      uint8_t const *bitcode, size_t bitcodeSize,
                                      uint32_t flags) = 0;
     virtual CpuScript * createIntrinsic(const Script *s, RsScriptIntrinsicID iid, Element *e) = 0;
-    virtual void* createScriptGroup(const ScriptGroupBase *sg) = 0;
+    virtual CpuScriptGroup * createScriptGroup(const ScriptGroup *sg) = 0;
     virtual bool getInForEach() = 0;
 
-    // Set to true if we should embed global variable information in the code.
-    virtual void setEmbedGlobalInfo(bool v) = 0;
-
-    // Returns true if we should embed global variable information in the code.
-    virtual bool getEmbedGlobalInfo() const = 0;
-
-    // Set to true if we should skip constant (immutable) global variables when
-    // potentially embedding information about globals.
-    virtual void setEmbedGlobalInfoSkipConstant(bool v) = 0;
-
-    // Returns true if we should skip constant (immutable) global variables when
-    // potentially embedding information about globals.
-    virtual bool getEmbedGlobalInfoSkipConstant() const = 0;
+#ifndef RS_COMPATIBILITY_LIB
+    virtual void setSetupCompilerCallback(
+            RSSetupCompilerCallback pSetupCompilerCallback) = 0;
+    virtual RSSetupCompilerCallback getSetupCompilerCallback() const = 0;
+#endif
 };
 
 

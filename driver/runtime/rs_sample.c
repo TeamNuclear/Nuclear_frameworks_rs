@@ -313,7 +313,7 @@ static uint32_t wrapI(rs_sampler_value wrap, int32_t coord, int32_t size) {
             coord = (size * 2) + coord;
         }
         if (coord >= size) {
-            coord = (size * 2 - 1) - coord;
+            coord = (size * 2) - coord;
         }
     }
     return (uint32_t)max(0, min(coord, size - 1));
@@ -432,7 +432,7 @@ static float4 __attribute__((overloadable))
 
     int32_t sourceW = alloc->mHal.drvState.lod[lod].dimX;
     float pixelUV = uv * (float)(sourceW);
-    int32_t iPixel = floor(pixelUV);
+    int32_t iPixel = (int32_t)(pixelUV);
     float frac = pixelUV - (float)iPixel;
 
     if (frac < 0.5f) {
@@ -461,7 +461,7 @@ static float4 __attribute__((overloadable))
                                 float uv, uint32_t lod) {
 
     int32_t sourceW = alloc->mHal.drvState.lod[lod].dimX;
-    int32_t iPixel = floor(uv * (float)(sourceW));
+    int32_t iPixel = (int32_t)(uv * (float)(sourceW));
     uint32_t location = wrapI(wrapS, iPixel, sourceW);
 
     return getNearestSample(alloc, location, dk, dt, lod);
@@ -481,8 +481,8 @@ static float4 __attribute__((overloadable))
 
     float pixelU = uv.x * sourceW;
     float pixelV = uv.y * sourceH;
-    int iPixelU = floor(pixelU);
-    int iPixelV = floor(pixelV);
+    int iPixelU = pixelU;
+    int iPixelV = pixelV;
     float fracU = pixelU - iPixelU;
     float fracV = pixelV - iPixelV;
 
@@ -527,7 +527,7 @@ static float4 __attribute__((overloadable))
     float2 dimF;
     dimF.x = (float)(sourceW);
     dimF.y = (float)(sourceH);
-    int2 iPixel = convert_int2(floor(uv * dimF));
+    int2 iPixel = convert_int2(uv * dimF);
 
     uint2 location;
     location.x = wrapI(wrapS, iPixel.x, sourceW);
@@ -535,7 +535,7 @@ static float4 __attribute__((overloadable))
     return getNearestSample(alloc, location, dk, dt, lod);
 }
 
-extern float4 __attribute__((overloadable))
+extern const float4 __attribute__((overloadable))
         rsSample(rs_allocation a, rs_sampler s, float uv, float lod) {
 
     const Allocation_t *alloc = (const Allocation_t *)a.p;
@@ -581,13 +581,13 @@ extern float4 __attribute__((overloadable))
     return sample_LOD_NearestPixel(alloc, dk, dt, wrapS, uv, 0);
 }
 
-extern float4 __attribute__((overloadable))
+extern const float4 __attribute__((overloadable))
         rsSample(rs_allocation a, rs_sampler s, float location) {
     return rsSample(a, s, location, 0);
 }
 
 
-extern float4 __attribute__((overloadable))
+extern const float4 __attribute__((overloadable))
         rsSample(rs_allocation a, rs_sampler s, float2 uv, float lod) {
 
     const Allocation_t *alloc = (const Allocation_t *)a.p;
@@ -634,7 +634,7 @@ extern float4 __attribute__((overloadable))
     return sample_LOD_NearestPixel(alloc, dk, dt, wrapS, wrapT, uv, 0);
 }
 
-extern float4 __attribute__((overloadable))
+extern const float4 __attribute__((overloadable))
         rsSample(rs_allocation a, rs_sampler s, float2 uv) {
 
     const Allocation_t *alloc = (const Allocation_t *)a.p;
@@ -655,3 +655,4 @@ extern float4 __attribute__((overloadable))
     }
     return sample_LOD_LinearPixel(alloc, dk, dt, wrapS, wrapT, uv, 0);
 }
+

@@ -16,6 +16,7 @@
 
 // exports unavailable mathlib functions to compat lib
 
+#ifdef RS_COMPATIBILITY_LIB
 
 typedef unsigned int uint32_t;
 typedef int int32_t;
@@ -58,8 +59,7 @@ IMPORT_F32_FN_F32_F32(fmod)
 extern float SC_frexpf(float v, int* ptr);
 float __attribute__((overloadable)) frexp(float v, int* ptr) {return SC_frexpf(v, ptr);}
 IMPORT_F32_FN_F32_F32(hypot)
-extern int SC_ilogbf(float v);
-int __attribute__((overloadable)) ilogb(float v) {return SC_ilogbf(v); }
+IMPORT_F32_FN_F32(ilogb)
 extern float SC_ldexpf(float v, int i);
 float __attribute__((overloadable)) ldexp(float v, int i) {return SC_ldexpf(v, i);}
 IMPORT_F32_FN_F32(lgamma)
@@ -91,7 +91,6 @@ float __attribute__((overloadable)) rsRand(float min, float max) {
   return SC_randf2(min, max);
 }
 
-#ifdef RS_COMPATIBILITY_LIB
 
 // !!! DANGER !!!
 // These functions are potentially missing on older Android versions.

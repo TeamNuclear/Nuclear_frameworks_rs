@@ -19,7 +19,7 @@
 
 #include "rsComponent.h"
 #include "rsUtils.h"
-#include "rsInternalDefines.h"
+#include "rsDefines.h"
 #include "rsObjectBase.h"
 
 // ---------------------------------------------------------------------------
@@ -123,8 +123,8 @@ public:
     static const Element* create(Context *rsc, size_t count,
                                  const Element **ein,
                                  const char **nin,
-                                 const size_t * lengths = nullptr,
-                                 const uint32_t *asin = nullptr) {
+                                 const size_t * lengths = NULL,
+                                 const uint32_t *asin = NULL) {
         ObjectBaseRef<const Element> elem = createRef(rsc, count, ein, nin, lengths, asin);
         elem->incUserRef();
         return elem.get();

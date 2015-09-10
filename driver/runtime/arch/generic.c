@@ -15,7 +15,7 @@
  */
 
 
-#include "rs_core.rsh"
+#include "rs_types.rsh"
 
 extern short __attribute__((overloadable, always_inline)) rsClamp(short amount, short low, short high);
 extern uchar4 __attribute__((overloadable)) convert_uchar4(short4);
@@ -79,10 +79,7 @@ extern T##4 __attribute__((overloadable)) clamp(T##4 amount, T low, T high) {   
     return r;                                                                       \
 }
 
-#if (!defined(__i386__) && !defined(__x86_64__)) || defined(RS_DEBUG_RUNTIME)
-// These functions must be defined here if we are not using the SSE
-// implementation, which includes when we are built as part of the
-// debug runtime (libclcore_debug.bc).
+#if !defined(__i386__) && !defined(__x86_64__)
 
 _CLAMP(float);
 
@@ -96,7 +93,7 @@ extern float2 __attribute__((overloadable)) clamp(float2 amount, float low, floa
 extern float3 __attribute__((overloadable)) clamp(float3 amount, float low, float high);
 extern float4 __attribute__((overloadable)) clamp(float4 amount, float low, float high);
 
-#endif // (!defined(__i386__) && !defined(__x86_64__)) || defined(RS_DEBUG_RUNTIME)
+#endif // !defined(__i386__) && !defined(__x86_64__)
 
 _CLAMP(double);
 _CLAMP(char);
@@ -652,6 +649,21 @@ extern uchar4 __attribute__((overloadable)) rsYuvToRGBA_uchar4(uchar y, uchar u,
     p.z = rsClamp(p.z, (short)0, (short)255);
     return convert_uchar4(p);
 }
+
+static float4 yuv_U_values = {0.f, -0.392f * 0.003921569f, +2.02 * 0.003921569f, 0.f};
+static float4 yuv_V_values = {1.603f * 0.003921569f, -0.815f * 0.003921569f, 0.f, 0.f};
+
+extern float4 __attribute__((overloadable)) rsYuvToRGBA_float4(uchar y, uchar u, uchar v) {
+    float4 color = (float)y * 0.003921569f;
+    float4 fU = ((float)u) - 128.f;
+    float4 fV = ((float)v) - 128.f;
+
+    color += fU * yuv_U_values;
+    color += fV * yuv_V_values;
+    color = clamp(color, 0.f, 1.f);
+    return color;
+}
+
 
 /*
  * half_RECIP

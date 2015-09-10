@@ -67,7 +67,7 @@ void ProgramStore::serialize(Context *rsc, OStream *stream) const {
 }
 
 ProgramStore *ProgramStore::createFromStream(Context *rsc, IStream *stream) {
-    return nullptr;
+    return NULL;
 }
 
 void ProgramStore::init() {

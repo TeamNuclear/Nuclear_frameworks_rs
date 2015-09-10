@@ -31,31 +31,35 @@ public:
     ObjectBaseRef<const Element> mElement;
 
     ScriptIntrinsic(Context *);
-    ~ScriptIntrinsic() override;
+    virtual ~ScriptIntrinsic();
 
     bool init(Context *rsc, RsScriptIntrinsicID iid, Element *e);
 
 
-    void serialize(Context *rsc, OStream *stream) const override;
-    RsA3DClassID getClassId() const override;
-    bool freeChildren() override;
+    virtual void serialize(Context *rsc, OStream *stream) const;
+    virtual RsA3DClassID getClassId() const;
+    virtual bool freeChildren();
 
-    void runForEach(Context* rsc,
-                    uint32_t slot,
-                    const Allocation ** ains,
-                    size_t inLen,
-                    Allocation* aout,
-                    const void* usr,
-                    size_t usrBytes,
-                    const RsScriptCall* sc = nullptr) override;
+    virtual void runForEach(Context *rsc,
+                            uint32_t slot,
+                            const Allocation * ain,
+                            Allocation * aout,
+                            const void * usr,
+                            size_t usrBytes,
+                            const RsScriptCall *sc = NULL);
 
-    void runReduce(Context *rsc, uint32_t slot, const Allocation *ain,
-                   Allocation *aout, const RsScriptCall *sc) override;
+    virtual void runForEach(Context* rsc,
+                            uint32_t slot,
+                            const Allocation** ains,
+                            size_t inLen,
+                            Allocation* aout,
+                            const void* usr,
+                            size_t usrBytes,
+                            const RsScriptCall* sc = NULL);
 
-    void Invoke(Context *rsc, uint32_t slot, const void *data, size_t len) override;
-    void setupScript(Context *rsc) override;
-    uint32_t run(Context *) override;
-    bool isIntrinsic() const override { return true; }
+    virtual void Invoke(Context *rsc, uint32_t slot, const void *data, size_t len);
+    virtual void setupScript(Context *rsc);
+    virtual uint32_t run(Context *);
 protected:
     uint32_t mIntrinsicID;
 
@@ -65,3 +69,5 @@ protected:
 }
 }
 #endif
+
+

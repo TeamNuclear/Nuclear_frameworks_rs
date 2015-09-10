@@ -12,11 +12,11 @@ typedef struct TestResult_s {
 
 static int64_t g_time;
 
-static inline void start(void) {
+static void start(void) {
     g_time = rsUptimeMillis();
 }
 
-static inline float end(uint32_t idx) {
+static float end(uint32_t idx) {
     int64_t t = rsUptimeMillis() - g_time;
     //g_results[idx].time = t;
     //rsDebug("test time", (int)t);
@@ -35,3 +35,4 @@ do { \
 /* These constants must match those in UnitTest.java */
 static const int RS_MSG_TEST_PASSED = 100;
 static const int RS_MSG_TEST_FAILED = 101;
+

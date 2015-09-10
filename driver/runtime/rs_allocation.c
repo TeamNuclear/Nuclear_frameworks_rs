@@ -272,10 +272,6 @@ ELEMENT_AT(ulong)
 ELEMENT_AT(ulong2)
 ELEMENT_AT(ulong3)
 ELEMENT_AT(ulong4)
-ELEMENT_AT(half)
-ELEMENT_AT(half2)
-ELEMENT_AT(half3)
-ELEMENT_AT(half4)
 ELEMENT_AT(float)
 ELEMENT_AT(float2)
 ELEMENT_AT(float3)
@@ -293,9 +289,9 @@ typedef unsigned long ull4 __attribute__((ext_vector_type(4)));
 #ifndef RS_DEBUG_RUNTIME
 SET_ELEMENT_AT_TYPE(ull, ulong)
 /*
-SET_ELEMENT_AT_TYPE(ull2, ulong2)
-SET_ELEMENT_AT_TYPE(ull3, ulong3)
-SET_ELEMENT_AT_TYPE(ull4, ulong4)
+ SET_ELEMENT_AT_TYPE(ull2, ulong2)
+ SET_ELEMENT_AT_TYPE(ull3, ulong3)
+ SET_ELEMENT_AT_TYPE(ull4, ulong4)
 */
 
 #undef SET_ELEMENT_AT_TYPE
@@ -306,12 +302,12 @@ SET_ELEMENT_AT_TYPE(ull4, ulong4)
 #undef ELEMENT_AT
 
 
-extern uchar __attribute__((overloadable))
+extern const uchar __attribute__((overloadable))
         rsGetElementAtYuv_uchar_Y(rs_allocation a, uint32_t x, uint32_t y) {
     return rsGetElementAt_uchar(a, x, y);
 }
 
-extern uchar __attribute__((overloadable))
+extern const uchar __attribute__((overloadable))
         rsGetElementAtYuv_uchar_U(rs_allocation a, uint32_t x, uint32_t y) {
 
     Allocation_t *alloc = (Allocation_t *)a.p;
@@ -325,7 +321,7 @@ extern uchar __attribute__((overloadable))
     return pin[((x >> shift) * cstep) + ((y >> shift) * stride)];
 }
 
-extern uchar __attribute__((overloadable))
+extern const uchar __attribute__((overloadable))
         rsGetElementAtYuv_uchar_V(rs_allocation a, uint32_t x, uint32_t y) {
 
     Allocation_t *alloc = (Allocation_t *)a.p;

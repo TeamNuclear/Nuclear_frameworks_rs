@@ -103,21 +103,21 @@ Program::~Program() {
     mHal.state.constantsCount = 0;
     mHal.state.texturesCount = 0;
 
-    if (mUserShader != nullptr) {
+    if (mUserShader != NULL) {
         delete[] mUserShader;
-        mUserShader = nullptr;
+        mUserShader = NULL;
     }
     mUserShaderLen = 0;
 }
 
 bool Program::freeChildren() {
     for (uint32_t ct=0; ct < mHal.state.constantsCount; ct++) {
-        bindAllocation(nullptr, nullptr, ct);
+        bindAllocation(NULL, NULL, ct);
     }
 
     for (uint32_t ct=0; ct < mHal.state.texturesCount; ct++) {
-        bindTexture(nullptr, ct, nullptr);
-        bindSampler(nullptr, ct, nullptr);
+        bindTexture(NULL, ct, NULL);
+        bindSampler(NULL, ct, NULL);
     }
     return false;
 }
@@ -125,32 +125,32 @@ bool Program::freeChildren() {
 void Program::initMemberVars() {
     mDirty = true;
 
-    mHal.drv = nullptr;
-    mHal.state.textures = nullptr;
-    mHal.state.samplers = nullptr;
-    mHal.state.textureTargets = nullptr;
-    mHal.state.inputElements = nullptr;
-    mHal.state.constantTypes = nullptr;
-    mHal.state.constants = nullptr;
+    mHal.drv = NULL;
+    mHal.state.textures = NULL;
+    mHal.state.samplers = NULL;
+    mHal.state.textureTargets = NULL;
+    mHal.state.inputElements = NULL;
+    mHal.state.constantTypes = NULL;
+    mHal.state.constants = NULL;
 
     mHal.state.inputElementsCount = 0;
     mHal.state.constantsCount = 0;
     mHal.state.texturesCount = 0;
 
-    mTextures = nullptr;
-    mSamplers = nullptr;
-    mInputElements = nullptr;
-    mConstantTypes = nullptr;
-    mConstants = nullptr;
+    mTextures = NULL;
+    mSamplers = NULL;
+    mInputElements = NULL;
+    mConstantTypes = NULL;
+    mConstants = NULL;
 
     mIsInternal = false;
 
-    mUserShader = nullptr;
+    mUserShader = NULL;
     mUserShaderLen = 0;
 }
 
 void Program::bindAllocation(Context *rsc, Allocation *alloc, uint32_t slot) {
-    if (alloc != nullptr) {
+    if (alloc != NULL) {
         if (slot >= mHal.state.constantsCount) {
             ALOGE("Attempt to bind alloc at slot %u, on shader id %" PRIuPTR ", but const count is %u",
                  slot, (uintptr_t)this, mHal.state.constantsCount);
